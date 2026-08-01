@@ -15,7 +15,6 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [agentStatus, setAgentStatus] = useState<string>("Starting…");
   const [listening, setListening] = useState(false);
-  const [heardUser, setHeardUser] = useState(false);
   const [muted, setMuted] = useState(false);
   const [chatRatio, setChatRatio] = useState(loadChatRatio);
   const [dragging, setDragging] = useState(false);
@@ -31,12 +30,6 @@ export default function App() {
   );
 
   const onChat = useEffectEvent((msg: ChatMessage) => {
-    if (msg.role === "user") {
-      setHeardUser(true);
-      setAgentStatus((prev) =>
-        prev === "Speak the app into existence..." ? "Listening..." : prev,
-      );
-    }
     setMessages((prev) => [...prev, msg]);
   });
 
@@ -139,7 +132,7 @@ export default function App() {
           return;
         }
         setListening(true);
-        setAgentStatus("Speak the app into existence...");
+        setAgentStatus("Listening...");
       } catch (err) {
         const message = err instanceof Error ? err.message : "Mic permission failed";
         setAgentStatus(message);
@@ -198,13 +191,7 @@ export default function App() {
           <div className="status-row">
             <div className={`listening ${listening && !muted ? "on" : ""}`}>
               <span className="dot" />
-              {muted
-                ? "Muted"
-                : listening
-                  ? heardUser
-                    ? "Listening..."
-                    : "Speak the app into existence..."
-                  : "Idle"}
+              {muted ? "Muted" : listening ? "Listening..." : "Idle"}
             </div>
             <button
               type="button"
