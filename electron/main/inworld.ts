@@ -9,6 +9,8 @@ type ChatRole = "user" | "assistant" | "system";
 
 const SESSION_INSTRUCTIONS = `You are a hands-free voice pair-programmer. The user speaks apps into existence.
 
+Always speak and respond in English only. Do not switch languages.
+
 A live webapp preview is on the right. You have two kinds of tools:
 
 BUILD — run_coding_agent: edit the playground source to create or change the UI.
@@ -199,10 +201,19 @@ export class InworldSession {
         // We explicitly send response.create after every tool result.
         providerData: {
           auto_tool_response: false,
+          stt: {
+            language_hints: ["en-US"],
+          },
+          tts: {
+            language: "en-US",
+          },
         },
         audio: {
           input: {
-            transcription: { model: "inworld/inworld-stt-1" },
+            transcription: {
+              model: "inworld/inworld-stt-1",
+              language: "en",
+            },
             turn_detection: {
               type: "semantic_vad",
               eagerness: "medium",
