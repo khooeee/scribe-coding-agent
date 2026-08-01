@@ -1,8 +1,18 @@
-export type ChatMessage = {
+export type TextChatMessage = {
   role: "user" | "assistant" | "system";
   text: string;
   at: number;
 };
+
+export type ToolsChatMessage = {
+  role: "tools";
+  lines: string[];
+  at: number;
+  /** Whether the tools/reasoning block is expanded */
+  open: boolean;
+};
+
+export type ChatMessage = TextChatMessage | ToolsChatMessage;
 
 export type AgentStatus = {
   type: "status" | "error" | "done";
@@ -26,7 +36,7 @@ export type VoiceFunApi = {
     ok: boolean;
     error?: string;
   }) => void;
-  onChatMessage: (cb: (msg: ChatMessage) => void) => () => void;
+  onChatMessage: (cb: (msg: TextChatMessage) => void) => () => void;
   onAgentStatus: (cb: (status: AgentStatus) => void) => () => void;
   onAudioOut: (cb: (payload: { pcm16Base64: string }) => void) => () => void;
   onPreviewReload: (cb: () => void) => () => void;

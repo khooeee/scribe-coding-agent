@@ -172,6 +172,73 @@ body {
   font-size: 0.8rem;
 }
 
+.tools-block {
+  align-self: flex-start;
+  max-width: 92%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(20, 27, 34, 0.9);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow: hidden;
+}
+
+.tools-block > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px;
+  user-select: none;
+}
+
+.tools-block > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tools-block > summary::before {
+  content: "▸";
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.tools-block[open] > summary::before {
+  content: "▾";
+}
+
+.tools-summary-label {
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.68rem;
+  flex: 0 0 auto;
+}
+
+.tools-summary-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.tools-lines {
+  border-top: 1px solid var(--line);
+  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.tools-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
 .gutter {
   cursor: col-resize;
   background: linear-gradient(180deg, transparent, var(--line), transparent);

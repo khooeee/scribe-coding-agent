@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { MicCapture, PcmPlayer } from "./audio";
-import type { AgentStatus, ChatMessage, PreviewAction } from "./types";
+import type { AgentStatus, ChatMessage, PreviewAction, TextChatMessage } from "./types";
 
 const SPLIT_KEY = "voice-coding-agent-chat-ratio";
 
@@ -24,6 +24,43 @@ function appendSystemMessage(
   });
 }
 
+function appendToolsLine(
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
+  text: string,
+  statusType: AgentStatus["type"],
+) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  setMessages((prev) => {
+    const last = prev[prev.length - 1];
+    if (last?.role === "tools") {
+      if (last.lines[last.lines.length - 1] === trimmed) {
+        return statusType === "done" || statusType === "error"
+          ? [...prev.slice(0, -1), { ...last, open: false }]
+          : prev;
+      }
+      return [
+        ...prev.slice(0, -1),
+        {
+          ...last,
+          lines: [...last.lines, trimmed],
+          // Respect manual collapse; auto-collapse when the run finishes.
+          open: statusType === "status" ? last.open : false,
+        },
+      ];
+    }
+    return [
+      ...prev,
+      {
+        role: "tools",
+        lines: [trimmed],
+        at: Date.now(),
+        open: true,
+      },
+    ];
+  });
+}
+
 export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [listening, setListening] = useState(false);
@@ -41,12 +78,12 @@ export default function App() {
     new Map<string, (result: { ok: boolean; error?: string }) => void>(),
   );
 
-  const onChat = useEffectEvent((msg: ChatMessage) => {
+  const onChat = useEffectEvent((msg: TextChatMessage) => {
     setMessages((prev) => [...prev, msg]);
   });
 
   const onStatus = useEffectEvent((status: AgentStatus) => {
-    appendSystemMessage(setMessages, status.message);
+    appendToolsLine(setMessages, status.message, status.type);
   });
 
   const onAudio = useEffectEvent((payload: { pcm16Base64: string }) => {
@@ -226,11 +263,42 @@ export default function App() {
               Speak your app into existence.
             </div>
           )}
-          {messages.map((m, i) => (
-            <div key={`${m.at}-${i}`} className={`bubble ${m.role}`}>
-              {m.text}
-            </div>
-          ))}
+          {messages.map((m, i) =>
+            m.role === "tools" ? (
+              <details
+                key={`${m.at}-${i}`}
+                className="tools-block"
+                open={m.open}
+                onToggle={(event) => {
+                  const open = event.currentTarget.open;
+                  setMessages((prev) =>
+                    prev.map((msg, idx) =>
+                      idx === i && msg.role === "tools" ? { ...msg, open } : msg,
+                    ),
+                  );
+                }}
+              >
+                <summary>
+                  <span className="tools-summary-label">Tools</span>
+                  <span className="tools-summary-text">
+                    {m.lines[m.lines.length - 1]}
+                    {m.lines.length > 1 ? ` · ${m.lines.length}` : ""}
+                  </span>
+                </summary>
+                <div className="tools-lines">
+                  {m.lines.map((line, li) => (
+                    <div key={li} className="tools-line">
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ) : (
+              <div key={`${m.at}-${i}`} className={`bubble ${m.role}`}>
+                {m.text}
+              </div>
+            ),
+          )}
           <div ref={messagesEndRef} />
         </div>
       </section>
