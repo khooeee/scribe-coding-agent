@@ -7,3 +7,4 @@ out
 .DS_Store
 playground/node_modules
 playground/dist
+playground/src
