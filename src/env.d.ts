@@ -1,8 +1,8 @@
-import type { VoiceFunApi } from "./types";
+import type { ScribeApi } from "./types";
 
 declare global {
   interface Window {
-    voiceFun: VoiceFunApi;
+    scribeApi: ScribeApi;
   }
 }
 

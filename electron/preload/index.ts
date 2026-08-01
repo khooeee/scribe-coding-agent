@@ -103,6 +103,6 @@ const api = {
   },
 };
 
-contextBridge.exposeInMainWorld("voiceFun", api);
+contextBridge.exposeInMainWorld("scribeApi", api);
 
-export type VoiceFunApi = typeof api;
+export type ScribeApi = typeof api;

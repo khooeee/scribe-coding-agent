@@ -119,7 +119,7 @@ export default function App() {
     const iframe = iframeRef.current;
     const win = iframe?.contentWindow;
     if (!win) {
-      window.voiceFun.reportPreviewActionResult({
+      window.scribeApi.reportPreviewActionResult({
         requestId: action.requestId,
         ok: false,
         error: "Preview frame not ready",
@@ -140,7 +140,7 @@ export default function App() {
       if (data.requestId !== action.requestId) return;
       window.removeEventListener("message", onAck);
       pendingAcks.current.delete(action.requestId);
-      window.voiceFun.reportPreviewActionResult({
+      window.scribeApi.reportPreviewActionResult({
         requestId: action.requestId,
         ok: Boolean(data.ok),
         error: data.error,
@@ -156,7 +156,7 @@ export default function App() {
       if (!pendingAcks.current.has(action.requestId)) return;
       pendingAcks.current.delete(action.requestId);
       window.removeEventListener("message", onAck);
-      window.voiceFun.reportPreviewActionResult({
+      window.scribeApi.reportPreviewActionResult({
         requestId: action.requestId,
         ok: false,
         error: "No ack from preview bridge",
@@ -171,17 +171,17 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     const unsubs = [
-      window.voiceFun.onChatMessage(onChat),
-      window.voiceFun.onAgentStatus(onStatus),
-      window.voiceFun.onAudioOut(onAudio),
-      window.voiceFun.onPreviewReload(reloadPreview),
-      window.voiceFun.onPreviewAction(handlePreviewAction),
-      window.voiceFun.onSetMute(onSetMute),
-      window.voiceFun.onProjectReset(onProjectReset),
+      window.scribeApi.onChatMessage(onChat),
+      window.scribeApi.onAgentStatus(onStatus),
+      window.scribeApi.onAudioOut(onAudio),
+      window.scribeApi.onPreviewReload(reloadPreview),
+      window.scribeApi.onPreviewAction(handlePreviewAction),
+      window.scribeApi.onSetMute(onSetMute),
+      window.scribeApi.onProjectReset(onProjectReset),
     ];
 
     async function boot() {
-      const config = await window.voiceFun.getConfig();
+      const config = await window.scribeApi.getConfig();
       if (cancelled) return;
       setPlaygroundUrl(config.playgroundUrl);
       setPreviewSrc(config.playgroundUrl);
@@ -189,8 +189,8 @@ export default function App() {
       const mic = new MicCapture();
       micRef.current = mic;
       try {
-        await mic.start((chunk) => window.voiceFun.sendAudio(chunk));
-        const result = await window.voiceFun.startVoice();
+        await mic.start((chunk) => window.scribeApi.sendAudio(chunk));
+        const result = await window.scribeApi.startVoice();
         if (cancelled) return;
         if (result.playgroundUrl) {
           setPlaygroundUrl(result.playgroundUrl);
@@ -217,7 +217,7 @@ export default function App() {
       unsubs.forEach((u) => u());
       void micRef.current?.stop();
       playerRef.current?.interrupt();
-      void window.voiceFun.stopVoice();
+      void window.scribeApi.stopVoice();
     };
   }, []);
 
@@ -385,7 +385,7 @@ export default function App() {
             title="Open in default browser"
             onClick={(event) => {
               event.preventDefault();
-              void window.voiceFun.openExternal(playgroundUrl);
+              void window.scribeApi.openExternal(playgroundUrl);
             }}
           >
             {playgroundUrl}

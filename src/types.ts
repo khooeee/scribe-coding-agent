@@ -45,7 +45,7 @@ export type PreviewAction =
 
 export type IncomingChatMessage = TextChatMessage | Omit<DiffChatMessage, "open">;
 
-export type VoiceFunApi = {
+export type ScribeApi = {
   getConfig: () => Promise<{ playgroundUrl: string }>;
   openExternal: (url: string) => Promise<{ ok: boolean }>;
   startVoice: () => Promise<{ ok: boolean; error?: string; playgroundUrl: string }>;
