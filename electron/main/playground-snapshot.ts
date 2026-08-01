@@ -47,6 +47,10 @@ export function hasUndoSnapshot(): boolean {
   return lastSnapshot !== null;
 }
 
+export function clearUndoSnapshot(): void {
+  lastSnapshot = null;
+}
+
 export async function undoLastPlaygroundChange(): Promise<{
   ok: boolean;
   summary: string;

@@ -62,4 +62,5 @@ export type VoiceFunApi = {
   onPreviewReload: (cb: () => void) => () => void;
   onPreviewAction: (cb: (action: PreviewAction) => void) => () => void;
   onSetMute: (cb: (muted: boolean) => void) => () => void;
+  onProjectReset: (cb: (payload: { playgroundUrl: string }) => void) => () => void;
 };

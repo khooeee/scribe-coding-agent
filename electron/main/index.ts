@@ -5,6 +5,7 @@ import { InworldSession } from "./inworld";
 import { disposeCodingAgent } from "./coding-agent";
 import { getPlaygroundUrl, startPlayground, stopPlayground } from "./playground";
 import { resolvePreviewAction, setPreviewWindowGetter } from "./preview-actions";
+import { installAppMenu } from "./menu";
 
 loadEnv({ path: join(process.cwd(), ".env") });
 
@@ -102,6 +103,7 @@ function registerIpc(): void {
 app.whenReady().then(async () => {
   registerIpc();
   setPreviewWindowGetter(() => mainWindow);
+  installAppMenu({ getWindow: () => mainWindow });
 
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
     if (permission === "media") {

@@ -109,6 +109,12 @@ export default function App() {
     setMuted(nextMuted);
   });
 
+  const onProjectReset = useEffectEvent((payload: { playgroundUrl: string }) => {
+    setPlaygroundUrl(payload.playgroundUrl);
+    setPreviewSrc(`${payload.playgroundUrl}?t=${Date.now()}`);
+    setMessages([]);
+  });
+
   const handlePreviewAction = useEffectEvent((action: PreviewAction) => {
     const iframe = iframeRef.current;
     const win = iframe?.contentWindow;
@@ -171,6 +177,7 @@ export default function App() {
       window.voiceFun.onPreviewReload(reloadPreview),
       window.voiceFun.onPreviewAction(handlePreviewAction),
       window.voiceFun.onSetMute(onSetMute),
+      window.voiceFun.onProjectReset(onProjectReset),
     ];
 
     async function boot() {

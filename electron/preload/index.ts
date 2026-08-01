@@ -94,6 +94,13 @@ const api = {
     ipcRenderer.on("voice:set-mute", handler);
     return () => ipcRenderer.removeListener("voice:set-mute", handler);
   },
+
+  onProjectReset: (cb: (payload: { playgroundUrl: string }) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, payload: { playgroundUrl: string }) =>
+      cb(payload);
+    ipcRenderer.on("project:reset", handler);
+    return () => ipcRenderer.removeListener("project:reset", handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("voiceFun", api);

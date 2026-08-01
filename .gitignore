@@ -5,5 +5,10 @@ dist
 out
 *.log
 .DS_Store
-playground/node_modules
-playground/dist
+
+# Working project — generated via File → New Project
+playground/
+
+# Template deps/build (source stays tracked)
+playground-template/node_modules
+playground-template/dist
