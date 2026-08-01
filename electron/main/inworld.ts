@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import { BrowserWindow } from "electron";
 import { runCodingAgent } from "./coding-agent";
 import { requestPreviewAction } from "./preview-actions";
+import { undoLastPlaygroundChange } from "./playground-snapshot";
 
 const INWORLD_URL = "wss://api.inworld.ai/api/v1/realtime/session";
 
@@ -14,11 +15,13 @@ Always speak and respond in English only. Do not switch languages.
 A live webapp preview is on the right. You have two kinds of tools:
 
 BUILD — run_coding_agent: edit the playground source to create or change the UI.
+UNDO — undo_last_change: revert the playground to how it was before the latest successful coding change.
 OPERATE — click, type_into, scroll, press_key: interact with the already-running preview.
 MIC — mute: mute or unmute the user's microphone in this app.
 
 Classify intent:
 - "Add a delete button" / "make a todo app" / "change the theme" → run_coding_agent
+- "Undo" / "undo that" / "revert the last change" / "go back" → undo_last_change
 - "Click delete" / "type milk into the input" / "scroll down" / "press Enter" → UI tools
 - "Mute" / "unmute" / "stop listening" → mute
 Prefer UI tools when the control already exists. Do not rebuild for simple interactions.
@@ -122,6 +125,17 @@ function tools() {
           },
         },
         required: ["muted"],
+      },
+    },
+    {
+      type: "function",
+      name: "undo_last_change",
+      description:
+        "Undo the latest successful coding-agent change to the playground webapp (restore previous source and refresh the preview).",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
       },
     },
   ];
@@ -523,6 +537,19 @@ export class InworldSession {
         sendMute(win, muted);
         sendChat(win, "system", muted ? "Microphone muted." : "Microphone unmuted.");
         this.completeToolCall(callId, { ok: true, muted });
+        return;
+      }
+
+      if (name === "undo_last_change") {
+        sendAgentStatus(win, "Undoing latest code change…");
+        const result = await undoLastPlaygroundChange();
+        if (result.ok) {
+          sendReload(win);
+          sendAgentStatus(win, result.summary, "done");
+        } else {
+          sendAgentStatus(win, result.summary, "error");
+        }
+        this.completeToolCall(callId, result);
         return;
       }
 

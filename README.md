@@ -39,6 +39,7 @@ Grant microphone access once. Listening starts automatically.
 | Tool | Purpose |
 |------|---------|
 | `run_coding_agent` | Edit playground source with Composer |
+| `undo_last_change` | Revert the latest successful coding change |
 | `click` | Click by label / text / selector |
 | `type_into` | Type into a field |
 | `scroll` | Scroll the preview |

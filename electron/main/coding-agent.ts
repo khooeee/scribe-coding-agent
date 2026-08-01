@@ -1,5 +1,6 @@
 import { Agent, CursorAgentError, type SDKAgent } from "@cursor/sdk";
 import { getPlaygroundPath } from "./playground";
+import { capturePlaygroundSnapshot, commitUndoSnapshot } from "./playground-snapshot";
 
 export type AgentStatusEvent = {
   type: "status" | "error" | "done";
@@ -38,6 +39,7 @@ export async function runCodingAgent(
   emit({ type: "status", message: "Composer is working…" });
 
   try {
+    const before = await capturePlaygroundSnapshot();
     const codingAgent = await ensureCodingAgent();
     const fullPrompt = [
       prompt,
@@ -87,6 +89,7 @@ export async function runCodingAgent(
       return { ok: false, summary, filesTouched: files };
     }
 
+    commitUndoSnapshot(before);
     const summary =
       (typeof result.result === "string" && result.result.trim()) || "Updated the webapp.";
     emit({ type: "done", message: summary, filesTouched: files });
