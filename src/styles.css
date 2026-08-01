@@ -173,8 +173,9 @@ body {
 }
 
 .tools-block {
-  align-self: flex-start;
-  max-width: 92%;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(20, 27, 34, 0.9);
