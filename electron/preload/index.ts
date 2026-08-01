@@ -20,6 +20,9 @@ export type PreviewAction =
 const api = {
   getConfig: (): Promise<{ playgroundUrl: string }> => ipcRenderer.invoke("app:get-config"),
 
+  openExternal: (url: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke("shell:open-external", url),
+
   startVoice: (): Promise<{ ok: boolean; error?: string; playgroundUrl: string }> =>
     ipcRenderer.invoke("voice:start"),
 

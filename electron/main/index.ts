@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session } from "electron";
+import { app, BrowserWindow, ipcMain, session, shell } from "electron";
 import { join } from "node:path";
 import { config as loadEnv } from "dotenv";
 import { InworldSession } from "./inworld";
@@ -25,6 +25,13 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: false,
     },
+  });
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      void shell.openExternal(url);
+    }
+    return { action: "deny" };
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -56,6 +63,15 @@ function registerIpc(): void {
   ipcMain.handle("app:get-config", () => ({
     playgroundUrl: getPlaygroundUrl(),
   }));
+
+  ipcMain.handle("shell:open-external", async (_event, url: string) => {
+    if (typeof url !== "string") return { ok: false };
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      return { ok: false };
+    }
+    await shell.openExternal(url);
+    return { ok: true };
+  });
 
   ipcMain.handle("voice:start", async () => startVoice());
 

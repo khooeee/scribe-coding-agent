@@ -231,8 +231,17 @@ export default function App() {
 
       <section className="preview-pane">
         <div className="preview-bar">
-          <span>Live preview</span>
-          <span>{playgroundUrl}</span>
+          <a
+            className="preview-link"
+            href={playgroundUrl}
+            title="Open in default browser"
+            onClick={(event) => {
+              event.preventDefault();
+              void window.voiceFun.openExternal(playgroundUrl);
+            }}
+          >
+            {playgroundUrl}
+          </a>
         </div>
         <iframe
           ref={iframeRef}

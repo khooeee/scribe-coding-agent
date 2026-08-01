@@ -213,18 +213,26 @@ body {
 .preview-bar {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
-  color: var(--muted);
   font-family: var(--font-mono);
   font-size: 0.75rem;
 }
 
-.preview-bar span {
+.preview-link {
+  color: var(--muted);
+  text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+}
+
+.preview-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 .preview-frame {

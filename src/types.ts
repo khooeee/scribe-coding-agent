@@ -17,6 +17,7 @@ export type PreviewAction =
 
 export type VoiceFunApi = {
   getConfig: () => Promise<{ playgroundUrl: string }>;
+  openExternal: (url: string) => Promise<{ ok: boolean }>;
   startVoice: () => Promise<{ ok: boolean; error?: string; playgroundUrl: string }>;
   stopVoice: () => Promise<{ ok: boolean }>;
   sendAudio: (pcm16Base64: string) => void;
