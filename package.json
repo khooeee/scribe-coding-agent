@@ -1,5 +1,5 @@
 {
-  "name": "voice-fun",
+  "name": "voice-coding-agent",
   "version": "0.1.0",
   "description": "Hands-free voice coding agent — speak apps into existence",
   "main": "./out/main/index.js",

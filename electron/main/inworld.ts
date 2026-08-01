@@ -136,6 +136,10 @@ export class InworldSession {
   private closed = false;
   private assistantBuffer = "";
   private getWindow: () => BrowserWindow | null;
+  /** Outstanding tool_call_ids waiting for function_call_output */
+  private pendingToolCalls = new Set<string>();
+  private toolChain: Promise<void> = Promise.resolve();
+  private interruptsDisabled = false;
 
   constructor(getWindow: () => BrowserWindow | null) {
     this.getWindow = getWindow;
@@ -192,6 +196,10 @@ export class InworldSession {
         output_modalities: ["audio", "text"],
         tools: tools(),
         tool_choice: "auto",
+        // We explicitly send response.create after every tool result.
+        providerData: {
+          auto_tool_response: false,
+        },
         audio: {
           input: {
             transcription: { model: "inworld/inworld-stt-1" },
@@ -199,12 +207,36 @@ export class InworldSession {
               type: "semantic_vad",
               eagerness: "medium",
               create_response: true,
+              // Barge-in while a tool_call is unanswered corrupts OpenAI history.
               interrupt_response: true,
             },
           },
           output: {
             model: "inworld-tts-2",
             voice,
+          },
+        },
+      },
+    });
+  }
+
+  private setToolsBusy(busy: boolean): void {
+    if (this.interruptsDisabled === busy) return;
+    this.interruptsDisabled = busy;
+    // While a tool_call is unanswered, do NOT auto-create a new model response
+    // from VAD — OpenAI requires every tool_call_id to get a tool message first.
+    this.send({
+      type: "session.update",
+      session: {
+        type: "realtime",
+        audio: {
+          input: {
+            turn_detection: {
+              type: "semantic_vad",
+              eagerness: "medium",
+              create_response: !busy,
+              interrupt_response: !busy,
+            },
           },
         },
       },
@@ -247,6 +279,17 @@ export class InworldSession {
     });
   }
 
+  private completeToolCall(callId: string, output: unknown): void {
+    if (!callId) return;
+    this.sendFunctionOutput(callId, output);
+    this.pendingToolCalls.delete(callId);
+    if (this.pendingToolCalls.size === 0) {
+      this.setToolsBusy(false);
+      // Continue the assistant turn with tool results in context.
+      this.send({ type: "response.create" });
+    }
+  }
+
   private async onMessage(raw: string): Promise<void> {
     let event: Record<string, unknown>;
     try {
@@ -256,6 +299,16 @@ export class InworldSession {
     }
 
     const type = String(event.type ?? "");
+
+    // If the user starts speaking while tools are unanswered, keep interrupts off
+    // until every tool_call_id has a function_call_output (OpenAI requirement).
+    if (type === "input_audio_buffer.speech_started" && this.pendingToolCalls.size > 0) {
+      sendAgentStatus(
+        this.getWindow(),
+        "Still finishing a tool — hang tight before the next request…",
+      );
+      return;
+    }
 
     if (type === "conversation.item.input_audio_transcription.completed") {
       const transcript = String(event.transcript ?? "").trim();
@@ -316,7 +369,23 @@ export class InworldSession {
       } catch {
         args = {};
       }
-      await this.handleTool(callId, name, args);
+
+      if (!callId) {
+        sendChat(this.getWindow(), "system", "Tool call missing call_id — skipped.");
+        return;
+      }
+
+      this.pendingToolCalls.add(callId);
+      this.setToolsBusy(true);
+
+      // Serialize tool execution so multiple calls in one turn complete in order,
+      // and every call_id gets an output before response.create.
+      this.toolChain = this.toolChain
+        .then(() => this.handleTool(callId, name, args))
+        .catch((err) => {
+          const error = err instanceof Error ? err.message : "Tool failed";
+          this.completeToolCall(callId, { ok: false, error });
+        });
       return;
     }
 
@@ -326,6 +395,12 @@ export class InworldSession {
           ? String((event.error as { message: string }).message)
           : "Inworld error";
       sendChat(this.getWindow(), "system", message);
+
+      // If the router rejected history, clear our local pending set so we can recover.
+      if (message.includes("tool_call") || message.includes("tool_calls")) {
+        this.pendingToolCalls.clear();
+        this.setToolsBusy(false);
+      }
     }
   }
 
@@ -341,7 +416,7 @@ export class InworldSession {
       if (name === "run_coding_agent") {
         const prompt = String(args.prompt ?? "").trim();
         if (!prompt) {
-          this.sendFunctionOutput(callId, { ok: false, error: "Missing prompt" });
+          this.completeToolCall(callId, { ok: false, error: "Missing prompt" });
           return;
         }
         sendAgentStatus(win, "Composer is working…");
@@ -351,7 +426,7 @@ export class InworldSession {
         if (result.ok) {
           sendReload(win);
         }
-        this.sendFunctionOutput(callId, {
+        this.completeToolCall(callId, {
           ok: result.ok,
           summary: result.summary,
           filesTouched: result.filesTouched,
@@ -365,7 +440,7 @@ export class InworldSession {
           target: String(args.target ?? ""),
           requestId,
         });
-        this.sendFunctionOutput(callId, result);
+        this.completeToolCall(callId, result);
         return;
       }
 
@@ -377,7 +452,7 @@ export class InworldSession {
           clear: Boolean(args.clear),
           requestId,
         });
-        this.sendFunctionOutput(callId, result);
+        this.completeToolCall(callId, result);
         return;
       }
 
@@ -390,7 +465,7 @@ export class InworldSession {
           amount,
           requestId,
         });
-        this.sendFunctionOutput(callId, result);
+        this.completeToolCall(callId, result);
         return;
       }
 
@@ -400,14 +475,14 @@ export class InworldSession {
           key: String(args.key ?? ""),
           requestId,
         });
-        this.sendFunctionOutput(callId, result);
+        this.completeToolCall(callId, result);
         return;
       }
 
-      this.sendFunctionOutput(callId, { ok: false, error: `Unknown tool: ${name}` });
+      this.completeToolCall(callId, { ok: false, error: `Unknown tool: ${name}` });
     } catch (err) {
       const error = err instanceof Error ? err.message : "Tool failed";
-      this.sendFunctionOutput(callId, { ok: false, error });
+      this.completeToolCall(callId, { ok: false, error });
     }
   }
 }
