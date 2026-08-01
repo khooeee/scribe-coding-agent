@@ -1,4 +1,4 @@
-# Voice Fun
+# Voice Coding Agent
 
 Hands-free voice coding agent: **speak an app into existence**.
 

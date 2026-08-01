@@ -17,7 +17,7 @@ function createWindow(): BrowserWindow {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: "Voice Fun",
+    title: "Scribe",
     backgroundColor: "#0f1419",
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
