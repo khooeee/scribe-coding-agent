@@ -1,12 +1,12 @@
 /**
  * Voice UI bridge — DO NOT REMOVE.
- * Parent Electron shell posts { source: "voice-coding-agent", action, ... } messages here.
+ * Parent Electron shell posts { source: "scribe-coding-agent", action, ... } messages here.
  */
 
 type BridgeRequest =
-  | { source: "voice-coding-agent"; action: "click"; target: string; requestId: string }
+  | { source: "scribe-coding-agent"; action: "click"; target: string; requestId: string }
   | {
-      source: "voice-coding-agent";
+      source: "scribe-coding-agent";
       action: "type_into";
       target: string;
       text: string;
@@ -14,17 +14,17 @@ type BridgeRequest =
       requestId: string;
     }
   | {
-      source: "voice-coding-agent";
+      source: "scribe-coding-agent";
       action: "scroll";
       direction: "up" | "down";
       amount?: "page" | "half" | number;
       requestId: string;
     }
-  | { source: "voice-coding-agent"; action: "press_key"; key: string; requestId: string };
+  | { source: "scribe-coding-agent"; action: "press_key"; key: string; requestId: string };
 
 function ack(requestId: string, ok: boolean, error?: string) {
   window.parent.postMessage(
-    { source: "voice-coding-agent-bridge", type: "action-result", requestId, ok, error },
+    { source: "scribe-coding-agent-bridge", type: "action-result", requestId, ok, error },
     "*",
   );
 }
@@ -178,7 +178,7 @@ function doPressKey(key: string): { ok: boolean; error?: string } {
 
 window.addEventListener("message", (event: MessageEvent) => {
   const data = event.data as BridgeRequest;
-  if (!data || data.source !== "voice-coding-agent") return;
+  if (!data || data.source !== "scribe-coding-agent") return;
   if (!data.action || !("requestId" in data)) return;
 
   try {

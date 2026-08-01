@@ -7,7 +7,7 @@ import type {
   PreviewAction,
 } from "./types";
 
-const SPLIT_KEY = "voice-coding-agent-chat-ratio";
+const SPLIT_KEY = "scribe-coding-agent-chat-ratio";
 
 function loadChatRatio(): number {
   const raw = localStorage.getItem(SPLIT_KEY);
@@ -135,7 +135,7 @@ export default function App() {
         ok?: boolean;
         error?: string;
       };
-      if (data?.source !== "voice-coding-agent-bridge") return;
+      if (data?.source !== "scribe-coding-agent-bridge") return;
       if (data.type !== "action-result") return;
       if (data.requestId !== action.requestId) return;
       window.removeEventListener("message", onAck);
@@ -150,7 +150,7 @@ export default function App() {
     pendingAcks.current.set(action.requestId, () => undefined);
     window.addEventListener("message", onAck);
     const origin = new URL(playgroundUrl).origin;
-    win.postMessage({ source: "voice-coding-agent", ...action }, origin);
+    win.postMessage({ source: "scribe-coding-agent", ...action }, origin);
 
     window.setTimeout(() => {
       if (!pendingAcks.current.has(action.requestId)) return;
