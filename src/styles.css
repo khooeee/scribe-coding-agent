@@ -1,0 +1,236 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1419;
+  --bg-chat: #141b22;
+  --bg-preview: #0b1014;
+  --ink: #e8eef4;
+  --muted: #8b9aab;
+  --line: #243040;
+  --accent: #3dd6c6;
+  --accent-dim: #1f6f68;
+  --user: #1c2a38;
+  --assistant: #18241f;
+  --system: #2a2218;
+  --danger: #ff7b72;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-body: "Avenir Next", "Segoe UI", Helvetica, sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(61, 214, 198, 0.12), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(90, 120, 255, 0.08), transparent 50%),
+    var(--bg);
+}
+
+.app {
+  display: grid;
+  grid-template-columns: var(--chat-width, 40%) 6px 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+.chat-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  min-height: 0;
+  background: linear-gradient(180deg, rgba(20, 27, 34, 0.96), rgba(15, 20, 25, 0.98));
+  border-right: 1px solid transparent;
+}
+
+.chat-header {
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.tagline {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.listening {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+}
+
+.listening .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.listening.on .dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(61, 214, 198, 0.6);
+  animation: pulse 1.6s ease-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(61, 214, 198, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(61, 214, 198, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(61, 214, 198, 0);
+  }
+}
+
+.mute-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.mute-btn.muted {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.bubble {
+  max-width: 92%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble.user {
+  align-self: flex-end;
+  background: var(--user);
+  border: 1px solid #2c3d4f;
+}
+
+.bubble.assistant {
+  align-self: flex-start;
+  background: var(--assistant);
+  border: 1px solid #274036;
+}
+
+.bubble.system {
+  align-self: center;
+  background: var(--system);
+  border: 1px solid #4a3a22;
+  color: #e6d3a8;
+  font-size: 0.8rem;
+}
+
+.agent-strip {
+  border-top: 1px solid var(--line);
+  padding: 10px 16px 14px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  min-height: 40px;
+}
+
+.agent-strip.active {
+  color: var(--accent);
+}
+
+.gutter {
+  cursor: col-resize;
+  background: linear-gradient(180deg, transparent, var(--line), transparent);
+  position: relative;
+}
+
+.gutter::after {
+  content: "";
+  position: absolute;
+  inset: 0 -3px;
+}
+
+.gutter:hover,
+.gutter.dragging {
+  background: var(--accent-dim);
+}
+
+.preview-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-preview);
+}
+
+.preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.preview-bar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-frame {
+  flex: 1;
+  border: 0;
+  width: 100%;
+  min-height: 0;
+  background: white;
+}

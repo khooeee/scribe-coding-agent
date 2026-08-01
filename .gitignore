@@ -1,1 +1,9 @@
 notes.md
+.env
+node_modules
+dist
+out
+*.log
+.DS_Store
+playground/node_modules
+playground/dist
