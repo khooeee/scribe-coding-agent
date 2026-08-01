@@ -239,6 +239,142 @@ body {
   line-height: 1.35;
 }
 
+.diff-block {
+  align-self: stretch;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0c1116;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  overflow: hidden;
+}
+
+.diff-block > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px;
+  user-select: none;
+}
+
+.diff-block > summary::-webkit-details-marker {
+  display: none;
+}
+
+.diff-block > summary::before {
+  content: "▸";
+  color: #7ee787;
+  flex: 0 0 auto;
+}
+
+.diff-block[open] > summary::before {
+  content: "▾";
+}
+
+.diff-summary-label {
+  color: #7ee787;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.68rem;
+  flex: 0 0 auto;
+}
+
+.diff-summary-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--ink);
+}
+
+.diff-files {
+  border-top: 1px solid var(--line);
+  max-height: 280px;
+  overflow: auto;
+}
+
+.diff-file + .diff-file {
+  border-top: 1px solid var(--line);
+}
+
+.diff-file-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.03);
+  position: sticky;
+  top: 0;
+}
+
+.diff-status {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.62rem;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
+.diff-status.added {
+  color: #7ee787;
+  border-color: rgba(126, 231, 135, 0.35);
+}
+
+.diff-status.deleted {
+  color: #ff7b72;
+  border-color: rgba(255, 123, 114, 0.35);
+}
+
+.diff-status.modified {
+  color: #e3b341;
+  border-color: rgba(227, 179, 65, 0.35);
+}
+
+.diff-hunk {
+  margin: 0;
+  padding: 0 0 8px;
+  overflow-x: auto;
+}
+
+.diff-line {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px;
+  white-space: pre;
+  line-height: 1.45;
+}
+
+.diff-line.add {
+  background: rgba(46, 160, 67, 0.18);
+  color: #aff5b4;
+}
+
+.diff-line.del {
+  background: rgba(248, 81, 73, 0.16);
+  color: #ffc1bd;
+}
+
+.diff-line.context {
+  color: #8b9aab;
+}
+
+.diff-gutter {
+  flex: 0 0 1ch;
+  opacity: 0.75;
+  user-select: none;
+}
+
+.diff-code {
+  flex: 1;
+  min-width: 0;
+}
+
 .gutter {
   cursor: col-resize;
   background: linear-gradient(180deg, transparent, var(--line), transparent);

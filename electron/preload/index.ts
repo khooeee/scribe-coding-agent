@@ -1,10 +1,27 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-export type ChatMessage = {
-  role: "user" | "assistant" | "system";
+export type DiffLine = {
+  type: "add" | "del" | "context";
   text: string;
-  at: number;
 };
+
+export type FileDiff = {
+  path: string;
+  status: "modified" | "added" | "deleted";
+  lines: DiffLine[];
+};
+
+export type ChatMessage =
+  | {
+      role: "user" | "assistant" | "system";
+      text: string;
+      at: number;
+    }
+  | {
+      role: "diff";
+      files: FileDiff[];
+      at: number;
+    };
 
 export type AgentStatus = {
   type: "status" | "error" | "done";

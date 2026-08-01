@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { getPlaygroundPath } from "./playground";
 
-type FileMap = Map<string, string>;
+export type FileMap = Map<string, string>;
 
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
 

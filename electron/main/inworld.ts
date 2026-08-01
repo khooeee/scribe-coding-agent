@@ -2,11 +2,19 @@ import WebSocket from "ws";
 import { BrowserWindow } from "electron";
 import { runCodingAgent } from "./coding-agent";
 import { requestPreviewAction } from "./preview-actions";
-import { undoLastPlaygroundChange } from "./playground-snapshot";
+import {
+  capturePlaygroundSnapshot,
+  undoLastPlaygroundChange,
+} from "./playground-snapshot";
+import { buildPlaygroundDiffs, type FileDiff } from "./file-diff";
 
 const INWORLD_URL = "wss://api.inworld.ai/api/v1/realtime/session";
 
 type ChatRole = "user" | "assistant" | "system";
+
+type OutgoingChatMessage =
+  | { role: ChatRole; text: string; at: number }
+  | { role: "diff"; files: FileDiff[]; at: number };
 
 const SESSION_INSTRUCTIONS = `You are a hands-free voice pair-programmer. The user speaks apps into existence.
 
@@ -143,7 +151,14 @@ function tools() {
 
 function sendChat(win: BrowserWindow | null, role: ChatRole, text: string) {
   if (!win || win.isDestroyed()) return;
-  win.webContents.send("chat:message", { role, text, at: Date.now() });
+  const msg: OutgoingChatMessage = { role, text, at: Date.now() };
+  win.webContents.send("chat:message", msg);
+}
+
+function sendDiff(win: BrowserWindow | null, files: FileDiff[]) {
+  if (!win || win.isDestroyed() || files.length === 0) return;
+  const msg: OutgoingChatMessage = { role: "diff", files, at: Date.now() };
+  win.webContents.send("chat:message", msg);
 }
 
 function sendAgentStatus(
@@ -478,6 +493,7 @@ export class InworldSession {
         });
         if (result.ok) {
           sendReload(win);
+          sendDiff(win, result.diffs);
         }
         this.completeToolCall(callId, {
           ok: result.ok,
@@ -542,9 +558,12 @@ export class InworldSession {
 
       if (name === "undo_last_change") {
         sendAgentStatus(win, "Undoing latest code change…");
+        const beforeUndo = await capturePlaygroundSnapshot();
         const result = await undoLastPlaygroundChange();
         if (result.ok) {
+          const afterUndo = await capturePlaygroundSnapshot();
           sendReload(win);
+          sendDiff(win, buildPlaygroundDiffs(beforeUndo, afterUndo));
           sendAgentStatus(win, result.summary, "done");
         } else {
           sendAgentStatus(win, result.summary, "error");

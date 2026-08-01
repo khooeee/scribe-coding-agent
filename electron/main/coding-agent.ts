@@ -1,6 +1,7 @@
 import { Agent, CursorAgentError, type SDKAgent } from "@cursor/sdk";
 import { getPlaygroundPath } from "./playground";
 import { capturePlaygroundSnapshot, commitUndoSnapshot } from "./playground-snapshot";
+import { buildPlaygroundDiffs, type FileDiff } from "./file-diff";
 
 export type AgentStatusEvent = {
   type: "status" | "error" | "done";
@@ -35,7 +36,7 @@ export async function ensureCodingAgent(): Promise<SDKAgent> {
 export async function runCodingAgent(
   prompt: string,
   emit: StatusEmitter,
-): Promise<{ ok: boolean; summary: string; filesTouched: string[] }> {
+): Promise<{ ok: boolean; summary: string; filesTouched: string[]; diffs: FileDiff[] }> {
   emit({ type: "status", message: "Composer is working…" });
 
   try {
@@ -86,23 +87,26 @@ export async function runCodingAgent(
     if (result.status === "error") {
       const summary = "The coding agent hit an error while editing.";
       emit({ type: "error", message: summary, filesTouched: files });
-      return { ok: false, summary, filesTouched: files };
+      return { ok: false, summary, filesTouched: files, diffs: [] };
     }
 
     commitUndoSnapshot(before);
+    const after = await capturePlaygroundSnapshot();
+    const diffs = buildPlaygroundDiffs(before, after);
+
     const summary =
       (typeof result.result === "string" && result.result.trim()) || "Updated the webapp.";
     emit({ type: "done", message: summary, filesTouched: files });
-    return { ok: true, summary: summary.slice(0, 500), filesTouched: files };
+    return { ok: true, summary: summary.slice(0, 500), filesTouched: files, diffs };
   } catch (err) {
     if (err instanceof CursorAgentError) {
       const summary = `Coding agent failed to start: ${err.message}`;
       emit({ type: "error", message: summary });
-      return { ok: false, summary, filesTouched: [] };
+      return { ok: false, summary, filesTouched: [], diffs: [] };
     }
     const summary = err instanceof Error ? err.message : "Unknown coding agent error";
     emit({ type: "error", message: summary });
-    return { ok: false, summary, filesTouched: [] };
+    return { ok: false, summary, filesTouched: [], diffs: [] };
   }
 }
 

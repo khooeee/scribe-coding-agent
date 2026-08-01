@@ -1,6 +1,11 @@
 import { useEffect, useEffectEvent, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { MicCapture, PcmPlayer } from "./audio";
-import type { AgentStatus, ChatMessage, PreviewAction, TextChatMessage } from "./types";
+import type {
+  AgentStatus,
+  ChatMessage,
+  IncomingChatMessage,
+  PreviewAction,
+} from "./types";
 
 const SPLIT_KEY = "voice-coding-agent-chat-ratio";
 
@@ -78,7 +83,11 @@ export default function App() {
     new Map<string, (result: { ok: boolean; error?: string }) => void>(),
   );
 
-  const onChat = useEffectEvent((msg: TextChatMessage) => {
+  const onChat = useEffectEvent((msg: IncomingChatMessage) => {
+    if (msg.role === "diff") {
+      setMessages((prev) => [...prev, { ...msg, open: true }]);
+      return;
+    }
     setMessages((prev) => [...prev, msg]);
   });
 
@@ -263,42 +272,93 @@ export default function App() {
               Speak your app into existence.
             </div>
           )}
-          {messages.map((m, i) =>
-            m.role === "tools" ? (
-              <details
-                key={`${m.at}-${i}`}
-                className="tools-block"
-                open={m.open}
-                onToggle={(event) => {
-                  const open = event.currentTarget.open;
-                  setMessages((prev) =>
-                    prev.map((msg, idx) =>
-                      idx === i && msg.role === "tools" ? { ...msg, open } : msg,
-                    ),
-                  );
-                }}
-              >
-                <summary>
-                  <span className="tools-summary-label">Tools</span>
-                  <span className="tools-summary-text">
-                    {m.lines[m.lines.length - 1]}
-                    {m.lines.length > 1 ? ` · ${m.lines.length}` : ""}
-                  </span>
-                </summary>
-                <div className="tools-lines">
-                  {m.lines.map((line, li) => (
-                    <div key={li} className="tools-line">
-                      {line}
-                    </div>
-                  ))}
-                </div>
-              </details>
-            ) : (
+          {messages.map((m, i) => {
+            if (m.role === "tools") {
+              return (
+                <details
+                  key={`${m.at}-${i}`}
+                  className="tools-block"
+                  open={m.open}
+                  onToggle={(event) => {
+                    const open = event.currentTarget.open;
+                    setMessages((prev) =>
+                      prev.map((msg, idx) =>
+                        idx === i && msg.role === "tools" ? { ...msg, open } : msg,
+                      ),
+                    );
+                  }}
+                >
+                  <summary>
+                    <span className="tools-summary-label">Tools</span>
+                    <span className="tools-summary-text">
+                      {m.lines[m.lines.length - 1]}
+                      {m.lines.length > 1 ? ` · ${m.lines.length}` : ""}
+                    </span>
+                  </summary>
+                  <div className="tools-lines">
+                    {m.lines.map((line, li) => (
+                      <div key={li} className="tools-line">
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              );
+            }
+
+            if (m.role === "diff") {
+              const fileLabel =
+                m.files.length === 1
+                  ? m.files[0]!.path
+                  : `${m.files.length} files changed`;
+              return (
+                <details
+                  key={`${m.at}-${i}`}
+                  className="diff-block"
+                  open={m.open}
+                  onToggle={(event) => {
+                    const open = event.currentTarget.open;
+                    setMessages((prev) =>
+                      prev.map((msg, idx) =>
+                        idx === i && msg.role === "diff" ? { ...msg, open } : msg,
+                      ),
+                    );
+                  }}
+                >
+                  <summary>
+                    <span className="diff-summary-label">Diff</span>
+                    <span className="diff-summary-text">{fileLabel}</span>
+                  </summary>
+                  <div className="diff-files">
+                    {m.files.map((file) => (
+                      <div key={file.path} className="diff-file">
+                        <div className="diff-file-path">
+                          <span className={`diff-status ${file.status}`}>{file.status}</span>
+                          {file.path}
+                        </div>
+                        <pre className="diff-hunk">
+                          {file.lines.map((line, li) => (
+                            <div key={li} className={`diff-line ${line.type}`}>
+                              <span className="diff-gutter">
+                                {line.type === "add" ? "+" : line.type === "del" ? "-" : " "}
+                              </span>
+                              <span className="diff-code">{line.text || " "}</span>
+                            </div>
+                          ))}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              );
+            }
+
+            return (
               <div key={`${m.at}-${i}`} className={`bubble ${m.role}`}>
                 {m.text}
               </div>
-            ),
-          )}
+            );
+          })}
           <div ref={messagesEndRef} />
         </div>
       </section>

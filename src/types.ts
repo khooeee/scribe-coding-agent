@@ -12,7 +12,25 @@ export type ToolsChatMessage = {
   open: boolean;
 };
 
-export type ChatMessage = TextChatMessage | ToolsChatMessage;
+export type DiffLine = {
+  type: "add" | "del" | "context";
+  text: string;
+};
+
+export type FileDiff = {
+  path: string;
+  status: "modified" | "added" | "deleted";
+  lines: DiffLine[];
+};
+
+export type DiffChatMessage = {
+  role: "diff";
+  files: FileDiff[];
+  at: number;
+  open: boolean;
+};
+
+export type ChatMessage = TextChatMessage | ToolsChatMessage | DiffChatMessage;
 
 export type AgentStatus = {
   type: "status" | "error" | "done";
@@ -25,6 +43,8 @@ export type PreviewAction =
   | { action: "scroll"; direction: "up" | "down"; amount?: "page" | "half" | number; requestId: string }
   | { action: "press_key"; key: string; requestId: string };
 
+export type IncomingChatMessage = TextChatMessage | Omit<DiffChatMessage, "open">;
+
 export type VoiceFunApi = {
   getConfig: () => Promise<{ playgroundUrl: string }>;
   openExternal: (url: string) => Promise<{ ok: boolean }>;
@@ -36,7 +56,7 @@ export type VoiceFunApi = {
     ok: boolean;
     error?: string;
   }) => void;
-  onChatMessage: (cb: (msg: TextChatMessage) => void) => () => void;
+  onChatMessage: (cb: (msg: IncomingChatMessage) => void) => () => void;
   onAgentStatus: (cb: (status: AgentStatus) => void) => () => void;
   onAudioOut: (cb: (payload: { pcm16Base64: string }) => void) => () => void;
   onPreviewReload: (cb: () => void) => () => void;
