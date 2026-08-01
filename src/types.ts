@@ -31,4 +31,5 @@ export type VoiceFunApi = {
   onAudioOut: (cb: (payload: { pcm16Base64: string }) => void) => () => void;
   onPreviewReload: (cb: () => void) => () => void;
   onPreviewAction: (cb: (action: PreviewAction) => void) => () => void;
+  onSetMute: (cb: (muted: boolean) => void) => () => void;
 };

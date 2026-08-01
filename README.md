@@ -43,6 +43,7 @@ Grant microphone access once. Listening starts automatically.
 | `type_into` | Type into a field |
 | `scroll` | Scroll the preview |
 | `press_key` | Press Enter, Escape, etc. |
+| `mute` | Mute / unmute the mic (`muted: true\|false`) |
 
 ## Important
 

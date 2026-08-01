@@ -15,10 +15,12 @@ A live webapp preview is on the right. You have two kinds of tools:
 
 BUILD — run_coding_agent: edit the playground source to create or change the UI.
 OPERATE — click, type_into, scroll, press_key: interact with the already-running preview.
+MIC — mute: mute or unmute the user's microphone in this app.
 
 Classify intent:
 - "Add a delete button" / "make a todo app" / "change the theme" → run_coding_agent
 - "Click delete" / "type milk into the input" / "scroll down" / "press Enter" → UI tools
+- "Mute" / "unmute" / "stop listening" → mute
 Prefer UI tools when the control already exists. Do not rebuild for simple interactions.
 Act immediately without asking for confirmation.
 Keep spoken replies short (one or two sentences) so the user can keep dictating.`;
@@ -106,6 +108,22 @@ function tools() {
         required: ["key"],
       },
     },
+    {
+      type: "function",
+      name: "mute",
+      description:
+        "Mute or unmute the user's microphone in this Electron app (not the preview webapp).",
+      parameters: {
+        type: "object",
+        properties: {
+          muted: {
+            type: "boolean",
+            description: "True to mute the mic, false to unmute.",
+          },
+        },
+        required: ["muted"],
+      },
+    },
   ];
 }
 
@@ -131,6 +149,11 @@ function sendAudioDelta(win: BrowserWindow | null, base64Pcm: string) {
 function sendReload(win: BrowserWindow | null) {
   if (!win || win.isDestroyed()) return;
   win.webContents.send("preview:reload");
+}
+
+function sendMute(win: BrowserWindow | null, muted: boolean) {
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send("voice:set-mute", { muted });
 }
 
 export class InworldSession {
@@ -487,6 +510,14 @@ export class InworldSession {
           requestId,
         });
         this.completeToolCall(callId, result);
+        return;
+      }
+
+      if (name === "mute") {
+        const muted = Boolean(args.muted);
+        sendMute(win, muted);
+        sendChat(win, "system", muted ? "Microphone muted." : "Microphone unmuted.");
+        this.completeToolCall(callId, { ok: true, muted });
         return;
       }
 

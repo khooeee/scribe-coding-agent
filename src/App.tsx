@@ -59,6 +59,10 @@ export default function App() {
     setPreviewSrc(next);
   });
 
+  const onSetMute = useEffectEvent((nextMuted: boolean) => {
+    setMuted(nextMuted);
+  });
+
   const handlePreviewAction = useEffectEvent((action: PreviewAction) => {
     const iframe = iframeRef.current;
     const win = iframe?.contentWindow;
@@ -120,6 +124,7 @@ export default function App() {
       window.voiceFun.onAudioOut(onAudio),
       window.voiceFun.onPreviewReload(reloadPreview),
       window.voiceFun.onPreviewAction(handlePreviewAction),
+      window.voiceFun.onSetMute(onSetMute),
     ];
 
     async function boot() {
