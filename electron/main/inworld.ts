@@ -381,11 +381,16 @@ export class InworldSession {
       return;
     }
 
+    // Per-sentence transcript.done events must NOT flush chat — that splits one
+    // spoken reply (especially after tool calls) into multiple bubbles.
     if (
-      type === "response.done" ||
       type === "response.output_audio_transcript.done" ||
       type === "response.audio_transcript.done"
     ) {
+      return;
+    }
+
+    if (type === "response.done") {
       const text = this.assistantBuffer.trim();
       if (text) {
         sendChat(this.getWindow(), "assistant", text);
