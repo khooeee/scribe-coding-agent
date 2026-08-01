@@ -165,7 +165,7 @@ body {
 }
 
 .bubble.system {
-  align-self: center;
+  align-self: flex-start;
   background: var(--system);
   border: 1px solid #4a3a22;
   color: #e6d3a8;
