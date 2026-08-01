@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { MicCapture, PcmPlayer } from "./audio";
 import type { AgentStatus, ChatMessage, PreviewAction } from "./types";
 
@@ -11,9 +11,21 @@ function loadChatRatio(): number {
   return Math.min(0.7, Math.max(0.2, n));
 }
 
+function appendSystemMessage(
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
+  text: string,
+) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  setMessages((prev) => {
+    const last = prev[prev.length - 1];
+    if (last?.role === "system" && last.text === trimmed) return prev;
+    return [...prev, { role: "system", text: trimmed, at: Date.now() }];
+  });
+}
+
 export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [agentStatus, setAgentStatus] = useState<string>("Starting…");
   const [listening, setListening] = useState(false);
   const [muted, setMuted] = useState(false);
   const [chatRatio, setChatRatio] = useState(loadChatRatio);
@@ -34,7 +46,7 @@ export default function App() {
   });
 
   const onStatus = useEffectEvent((status: AgentStatus) => {
-    setAgentStatus(status.message);
+    appendSystemMessage(setMessages, status.message);
   });
 
   const onAudio = useEffectEvent((payload: { pcm16Base64: string }) => {
@@ -127,15 +139,15 @@ export default function App() {
           setPreviewSrc(result.playgroundUrl);
         }
         if (!result.ok) {
-          setAgentStatus(result.error ?? "Failed to start voice");
+          appendSystemMessage(setMessages, result.error ?? "Failed to start voice");
           setListening(false);
           return;
         }
         setListening(true);
-        setAgentStatus("Listening...");
+        appendSystemMessage(setMessages, "Listening...");
       } catch (err) {
         const message = err instanceof Error ? err.message : "Mic permission failed";
-        setAgentStatus(message);
+        appendSystemMessage(setMessages, message);
         setListening(false);
       }
     }
@@ -206,7 +218,7 @@ export default function App() {
         <div className="messages">
           {messages.length === 0 && (
             <div className="bubble system">
-              Arms folded after mic access — build and use the app by voice.
+              Speak your app into existence.
             </div>
           )}
           {messages.map((m, i) => (
@@ -215,10 +227,6 @@ export default function App() {
             </div>
           ))}
           <div ref={messagesEndRef} />
-        </div>
-
-        <div className={`agent-strip ${agentStatus.includes("Composer") ? "active" : ""}`}>
-          {agentStatus}
         </div>
       </section>
 

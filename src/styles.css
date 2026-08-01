@@ -172,19 +172,6 @@ body {
   font-size: 0.8rem;
 }
 
-.agent-strip {
-  border-top: 1px solid var(--line);
-  padding: 10px 16px 14px;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  min-height: 40px;
-}
-
-.agent-strip.active {
-  color: var(--accent);
-}
-
 .gutter {
   cursor: col-resize;
   background: linear-gradient(180deg, transparent, var(--line), transparent);

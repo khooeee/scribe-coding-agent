@@ -169,7 +169,7 @@ export class InworldSession {
       });
 
       this.ws.on("open", () => {
-        sendChat(this.getWindow(), "system", "Voice session connected. Listening…");
+        sendChat(this.getWindow(), "system", "Voice session connected.");
         resolve();
       });
 
