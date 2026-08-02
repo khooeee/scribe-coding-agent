@@ -75,6 +75,12 @@ const api = {
     return () => ipcRenderer.removeListener("voice:audio", handler);
   },
 
+  onVoiceInterrupt: (cb: () => void): (() => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("voice:interrupt", handler);
+    return () => ipcRenderer.removeListener("voice:interrupt", handler);
+  },
+
   onPreviewReload: (cb: () => void): (() => void) => {
     const handler = () => cb();
     ipcRenderer.on("preview:reload", handler);

@@ -100,6 +100,10 @@ export default function App() {
     playerRef.current.playBase64Pcm16(payload.pcm16Base64);
   });
 
+  const onVoiceInterrupt = useEffectEvent(() => {
+    playerRef.current?.interrupt();
+  });
+
   const reloadPreview = useEffectEvent(() => {
     const next = `${playgroundUrl}?t=${Date.now()}`;
     setPreviewSrc(next);
@@ -174,6 +178,7 @@ export default function App() {
       window.scribeApi.onChatMessage(onChat),
       window.scribeApi.onAgentStatus(onStatus),
       window.scribeApi.onAudioOut(onAudio),
+      window.scribeApi.onVoiceInterrupt(onVoiceInterrupt),
       window.scribeApi.onPreviewReload(reloadPreview),
       window.scribeApi.onPreviewAction(handlePreviewAction),
       window.scribeApi.onSetMute(onSetMute),

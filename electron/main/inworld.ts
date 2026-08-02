@@ -185,6 +185,11 @@ function sendMute(win: BrowserWindow | null, muted: boolean) {
   win.webContents.send("voice:set-mute", { muted });
 }
 
+function sendVoiceInterrupt(win: BrowserWindow | null) {
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send("voice:interrupt");
+}
+
 export class InworldSession {
   private ws: WebSocket | null = null;
   private closed = false;
@@ -192,12 +197,17 @@ export class InworldSession {
   private getWindow: () => BrowserWindow | null;
   /** Outstanding tool_call_ids waiting for function_call_output */
   private pendingToolCalls = new Set<string>();
+  private answeredToolCalls = new Set<string>();
   private toolChain: Promise<void> = Promise.resolve();
-  private interruptsDisabled = false;
+  /** Bumps on barge-in so in-flight tools cannot write late outputs */
+  private toolEpoch = 0;
+  private toolsBusy = false;
   /** True between response.created and response.done */
   private responseInFlight = false;
   /** True once the current/last response requested any tools */
   private awaitingToolFollowUp = false;
+  /** Drop TTS deltas after barge-in until the next response.created */
+  private suppressAudio = false;
 
   constructor(getWindow: () => BrowserWindow | null) {
     this.getWindow = getWindow;
@@ -288,10 +298,11 @@ export class InworldSession {
   }
 
   private setToolsBusy(busy: boolean): void {
-    if (this.interruptsDisabled === busy) return;
-    this.interruptsDisabled = busy;
+    if (this.toolsBusy === busy) return;
+    this.toolsBusy = busy;
     // While a tool_call is unanswered, do NOT auto-create a new model response
     // from VAD — OpenAI requires every tool_call_id to get a tool message first.
+    // Keep interrupt_response on so barge-in works; we repair tool history on speech_started.
     this.send({
       type: "session.update",
       session: {
@@ -302,7 +313,7 @@ export class InworldSession {
               type: "semantic_vad",
               eagerness: "medium",
               create_response: !busy,
-              interrupt_response: !busy,
+              interrupt_response: true,
             },
           },
         },
@@ -346,9 +357,23 @@ export class InworldSession {
     });
   }
 
-  private completeToolCall(callId: string, output: unknown): void {
-    if (!callId) return;
+  private noteToolCall(callId: string): void {
+    if (!callId || this.answeredToolCalls.has(callId)) return;
+    this.pendingToolCalls.add(callId);
+    this.awaitingToolFollowUp = true;
+    this.responseInFlight = true;
+    this.setToolsBusy(true);
+  }
+
+  private completeToolCall(callId: string, output: unknown, epoch: number): void {
+    if (!callId || epoch !== this.toolEpoch) return;
+    if (this.answeredToolCalls.has(callId)) {
+      this.pendingToolCalls.delete(callId);
+      this.maybeContinueAfterTools();
+      return;
+    }
     this.sendFunctionOutput(callId, output);
+    this.answeredToolCalls.add(callId);
     this.pendingToolCalls.delete(callId);
     this.maybeContinueAfterTools();
   }
@@ -370,19 +395,46 @@ export class InworldSession {
     this.send({ type: "response.create" });
   }
 
-  private recoverMissingToolOutputs(message: string): void {
-    const fromError = message.match(/call_[A-Za-z0-9]+/g) ?? [];
-    const ids = new Set([...this.pendingToolCalls, ...fromError]);
+  /** Answer every unanswered tool_call_id so a barge-in turn can proceed. */
+  private cancelUnansweredTools(reason: string, extraIds: string[] = []): void {
+    this.toolEpoch += 1;
+    const ids = new Set([...this.pendingToolCalls, ...extraIds]);
     for (const callId of ids) {
-      this.sendFunctionOutput(callId, {
-        ok: false,
-        error: "Tool call interrupted; no result available.",
-      });
+      if (!callId || this.answeredToolCalls.has(callId)) continue;
+      this.sendFunctionOutput(callId, { ok: false, error: reason });
+      this.answeredToolCalls.add(callId);
     }
     this.pendingToolCalls.clear();
     this.awaitingToolFollowUp = false;
     this.responseInFlight = false;
+    this.assistantBuffer = "";
     this.setToolsBusy(false);
+  }
+
+  private recoverMissingToolOutputs(message: string): void {
+    const fromError = message.match(/call_[A-Za-z0-9]+/g) ?? [];
+    this.cancelUnansweredTools("Tool call interrupted; no result available.", fromError);
+  }
+
+  private collectFunctionCallIds(event: Record<string, unknown>): string[] {
+    const response = event.response as
+      | { output?: Array<{ type?: string; call_id?: string }> }
+      | undefined;
+    const ids: string[] = [];
+    for (const item of response?.output ?? []) {
+      if (item?.type === "function_call" && item.call_id) ids.push(item.call_id);
+    }
+    return ids;
+  }
+
+  private handleUserInterrupt(): void {
+    this.suppressAudio = true;
+    sendVoiceInterrupt(this.getWindow());
+    this.assistantBuffer = "";
+    if (this.pendingToolCalls.size > 0 || this.awaitingToolFollowUp) {
+      this.cancelUnansweredTools("Interrupted by user.");
+      sendAgentStatus(this.getWindow(), "Interrupted — listening for your next request…");
+    }
   }
 
   private async onMessage(raw: string): Promise<void> {
@@ -395,16 +447,10 @@ export class InworldSession {
 
     const type = String(event.type ?? "");
 
-    // If the user starts speaking while tools are unanswered, keep interrupts off
-    // until every tool_call_id has a function_call_output (OpenAI requirement).
-    if (
-      type === "input_audio_buffer.speech_started" &&
-      (this.pendingToolCalls.size > 0 || this.awaitingToolFollowUp)
-    ) {
-      sendAgentStatus(
-        this.getWindow(),
-        "Still finishing a tool — hang tight before the next request…",
-      );
+    // Barge-in: stop local playback and answer any open tool_calls before the
+    // next model turn (OpenAI rejects history with unanswered tool_call_ids).
+    if (type === "input_audio_buffer.speech_started") {
+      this.handleUserInterrupt();
       return;
     }
 
@@ -417,8 +463,17 @@ export class InworldSession {
     // Some realtime stacks nest transcription on the item.
     if (type === "conversation.item.created") {
       const item = event.item as
-        | { type?: string; role?: string; content?: Array<{ type?: string; transcript?: string }> }
+        | {
+            type?: string;
+            role?: string;
+            call_id?: string;
+            content?: Array<{ type?: string; transcript?: string }>;
+          }
         | undefined;
+      if (item?.type === "function_call" && item.call_id) {
+        this.noteToolCall(item.call_id);
+        return;
+      }
       if (item?.type === "message" && item.role === "user") {
         const transcript = item.content?.find((c) => c.transcript)?.transcript?.trim();
         if (transcript) sendChat(this.getWindow(), "user", transcript);
@@ -428,6 +483,15 @@ export class InworldSession {
 
     if (type === "response.created") {
       this.responseInFlight = true;
+      this.suppressAudio = false;
+      return;
+    }
+
+    if (type === "response.output_item.added" || type === "response.output_item.done") {
+      const item = event.item as { type?: string; call_id?: string } | undefined;
+      if (item?.type === "function_call" && item.call_id) {
+        this.noteToolCall(item.call_id);
+      }
       return;
     }
 
@@ -445,6 +509,7 @@ export class InworldSession {
     }
 
     if (type === "response.output_audio.delta" || type === "response.audio.delta") {
+      if (this.suppressAudio) return;
       const delta = String(event.delta ?? "");
       if (delta) sendAudioDelta(this.getWindow(), delta);
       return;
@@ -459,8 +524,32 @@ export class InworldSession {
       return;
     }
 
+    if (type === "response.cancelled") {
+      const ids = this.collectFunctionCallIds(event);
+      for (const id of ids) this.noteToolCall(id);
+      this.cancelUnansweredTools("Interrupted by user.", ids);
+      return;
+    }
+
     if (type === "response.done") {
       this.responseInFlight = false;
+      const response = event.response as { status?: string } | undefined;
+      const ids = this.collectFunctionCallIds(event);
+
+      if (response?.status === "cancelled" || response?.status === "incomplete") {
+        this.cancelUnansweredTools("Interrupted by user.", ids);
+        return;
+      }
+
+      // Track any call_ids we missed, but do not mark the response in-flight again
+      // (that would block maybeContinueAfterTools forever).
+      for (const id of ids) {
+        if (!id || this.answeredToolCalls.has(id)) continue;
+        this.pendingToolCalls.add(id);
+        this.awaitingToolFollowUp = true;
+        this.setToolsBusy(true);
+      }
+
       const text = this.assistantBuffer.trim();
       if (text) {
         sendChat(this.getWindow(), "assistant", text);
@@ -485,18 +574,17 @@ export class InworldSession {
         return;
       }
 
-      this.pendingToolCalls.add(callId);
-      this.awaitingToolFollowUp = true;
-      this.responseInFlight = true;
-      this.setToolsBusy(true);
+      this.noteToolCall(callId);
+      if (this.answeredToolCalls.has(callId)) return;
+      const epoch = this.toolEpoch;
 
       // Serialize tool execution so multiple calls in one turn complete in order,
       // and every call_id gets an output before response.create.
       this.toolChain = this.toolChain
-        .then(() => this.handleTool(callId, name, args))
+        .then(() => this.handleTool(callId, name, args, epoch))
         .catch((err) => {
           const error = err instanceof Error ? err.message : "Tool failed";
-          this.completeToolCall(callId, { ok: false, error });
+          this.completeToolCall(callId, { ok: false, error }, epoch);
         });
       return;
     }
@@ -519,7 +607,10 @@ export class InworldSession {
     callId: string,
     name: string,
     args: Record<string, unknown>,
+    epoch: number,
   ): Promise<void> {
+    if (epoch !== this.toolEpoch) return;
+
     const win = this.getWindow();
     const requestId = `${callId}-${Date.now()}`;
 
@@ -527,22 +618,28 @@ export class InworldSession {
       if (name === "run_coding_agent") {
         const prompt = String(args.prompt ?? "").trim();
         if (!prompt) {
-          this.completeToolCall(callId, { ok: false, error: "Missing prompt" });
+          this.completeToolCall(callId, { ok: false, error: "Missing prompt" }, epoch);
           return;
         }
         sendAgentStatus(win, "Composer is working…");
         const result = await runCodingAgent(prompt, (evt) => {
+          if (epoch !== this.toolEpoch) return;
           sendAgentStatus(win, evt.message, evt.type);
         });
+        if (epoch !== this.toolEpoch) return;
         if (result.ok) {
           sendReload(win);
           sendDiff(win, result.diffs);
         }
-        this.completeToolCall(callId, {
-          ok: result.ok,
-          summary: result.summary,
-          filesTouched: result.filesTouched,
-        });
+        this.completeToolCall(
+          callId,
+          {
+            ok: result.ok,
+            summary: result.summary,
+            filesTouched: result.filesTouched,
+          },
+          epoch,
+        );
         return;
       }
 
@@ -552,7 +649,7 @@ export class InworldSession {
           target: String(args.target ?? ""),
           requestId,
         });
-        this.completeToolCall(callId, result);
+        this.completeToolCall(callId, result, epoch);
         return;
       }
 
@@ -564,7 +661,7 @@ export class InworldSession {
           clear: Boolean(args.clear),
           requestId,
         });
-        this.completeToolCall(callId, result);
+        this.completeToolCall(callId, result, epoch);
         return;
       }
 
@@ -577,7 +674,7 @@ export class InworldSession {
           amount,
           requestId,
         });
-        this.completeToolCall(callId, result);
+        this.completeToolCall(callId, result, epoch);
         return;
       }
 
@@ -587,7 +684,7 @@ export class InworldSession {
           key: String(args.key ?? ""),
           requestId,
         });
-        this.completeToolCall(callId, result);
+        this.completeToolCall(callId, result, epoch);
         return;
       }
 
@@ -595,7 +692,7 @@ export class InworldSession {
         const muted = Boolean(args.muted);
         sendMute(win, muted);
         sendChat(win, "system", muted ? "Microphone muted." : "Microphone unmuted.");
-        this.completeToolCall(callId, { ok: true, muted });
+        this.completeToolCall(callId, { ok: true, muted }, epoch);
         return;
       }
 
@@ -603,6 +700,7 @@ export class InworldSession {
         sendAgentStatus(win, "Undoing latest code change…");
         const beforeUndo = await capturePlaygroundSnapshot();
         const result = await undoLastPlaygroundChange();
+        if (epoch !== this.toolEpoch) return;
         if (result.ok) {
           const afterUndo = await capturePlaygroundSnapshot();
           sendReload(win);
@@ -611,14 +709,14 @@ export class InworldSession {
         } else {
           sendAgentStatus(win, result.summary, "error");
         }
-        this.completeToolCall(callId, result);
+        this.completeToolCall(callId, result, epoch);
         return;
       }
 
-      this.completeToolCall(callId, { ok: false, error: `Unknown tool: ${name}` });
+      this.completeToolCall(callId, { ok: false, error: `Unknown tool: ${name}` }, epoch);
     } catch (err) {
       const error = err instanceof Error ? err.message : "Tool failed";
-      this.completeToolCall(callId, { ok: false, error });
+      this.completeToolCall(callId, { ok: false, error }, epoch);
     }
   }
 }
