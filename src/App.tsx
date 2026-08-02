@@ -77,6 +77,7 @@ export default function App() {
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const toolsLinesRef = useRef<HTMLDivElement>(null);
   const micRef = useRef<MicCapture | null>(null);
   const playerRef = useRef<PcmPlayer | null>(null);
   const pendingAcks = useRef(
@@ -170,6 +171,8 @@ export default function App() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const toolsEl = toolsLinesRef.current;
+    if (toolsEl) toolsEl.scrollTop = toolsEl.scrollHeight;
   }, [messages]);
 
   useEffect(() => {
@@ -286,6 +289,7 @@ export default function App() {
           )}
           {messages.map((m, i) => {
             if (m.role === "tools") {
+              const isLatestTools = !messages.slice(i + 1).some((msg) => msg.role === "tools");
               return (
                 <details
                   key={`${m.at}-${i}`}
@@ -307,7 +311,10 @@ export default function App() {
                       {m.lines.length > 1 ? ` · ${m.lines.length}` : ""}
                     </span>
                   </summary>
-                  <div className="tools-lines">
+                  <div
+                    className="tools-lines"
+                    ref={isLatestTools ? toolsLinesRef : undefined}
+                  >
                     {m.lines.map((line, li) => (
                       <div key={li} className="tools-line">
                         {line}
