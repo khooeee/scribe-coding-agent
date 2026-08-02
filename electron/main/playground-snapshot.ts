@@ -5,8 +5,10 @@ import { getPlaygroundPath } from "./playground";
 export type FileMap = Map<string, string>;
 
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
+const MAX_UNDO = 100;
 
-let lastSnapshot: FileMap | null = null;
+/** Oldest → newest. Pop restores the most recent successful coding change. */
+const undoStack: FileMap[] = [];
 
 async function walkFiles(dir: string, root: string, out: FileMap): Promise<void> {
   let entries;
@@ -40,29 +42,34 @@ export async function capturePlaygroundSnapshot(): Promise<FileMap> {
 }
 
 export function commitUndoSnapshot(snapshot: FileMap): void {
-  lastSnapshot = snapshot;
+  undoStack.push(snapshot);
+  while (undoStack.length > MAX_UNDO) {
+    undoStack.shift();
+  }
 }
 
 export function hasUndoSnapshot(): boolean {
-  return lastSnapshot !== null;
+  return undoStack.length > 0;
+}
+
+export function undoStackSize(): number {
+  return undoStack.length;
 }
 
 export function clearUndoSnapshot(): void {
-  lastSnapshot = null;
+  undoStack.length = 0;
 }
 
 export async function undoLastPlaygroundChange(): Promise<{
   ok: boolean;
   summary: string;
 }> {
-  if (!lastSnapshot) {
+  const snapshot = undoStack.pop();
+  if (!snapshot) {
     return { ok: false, summary: "Nothing to undo." };
   }
 
   const root = getPlaygroundPath();
-  const snapshot = lastSnapshot;
-  lastSnapshot = null;
-
   const current = await capturePlaygroundSnapshot();
 
   // Restore snapshot files.
@@ -82,5 +89,10 @@ export async function undoLastPlaygroundChange(): Promise<{
     }
   }
 
-  return { ok: true, summary: "Reverted the latest code change." };
+  const remaining = undoStack.length;
+  const summary =
+    remaining > 0
+      ? `Reverted the latest code change (${remaining} undo${remaining === 1 ? "" : "s"} left).`
+      : "Reverted the latest code change (nothing left to undo).";
+  return { ok: true, summary };
 }

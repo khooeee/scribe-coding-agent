@@ -23,7 +23,7 @@ Always speak and respond in English only. Do not switch languages.
 A live webapp preview is on the right. You have two kinds of tools:
 
 BUILD — run_coding_agent: edit the playground source to create or change the UI.
-UNDO — undo_last_change: revert the playground to how it was before the latest successful coding change.
+UNDO — undo_last_change: revert the playground one successful coding change at a time (up to 100 steps).
 OPERATE — click, type_into, scroll, press_key: interact with the already-running preview.
 MIC — mute: mute or unmute the user's microphone in this app.
 
@@ -139,7 +139,7 @@ function tools() {
       type: "function",
       name: "undo_last_change",
       description:
-        "Undo the latest successful coding-agent change to the playground webapp (restore previous source and refresh the preview).",
+        "Undo the latest successful coding-agent change to the playground webapp (restore previous source and refresh the preview). Can be called repeatedly; up to 100 prior changes are kept.",
       parameters: {
         type: "object",
         properties: {},
