@@ -8,6 +8,7 @@ import {
 } from "./playground-snapshot";
 import { buildPlaygroundDiffs, type FileDiff } from "./file-diff";
 import { getPlaygroundUrl } from "./playground";
+import { runUiTest, uiTestPrompt } from "./ui-test-runner";
 
 const INWORLD_URL = "wss://api.inworld.ai/api/v1/realtime/session";
 
@@ -21,11 +22,12 @@ const SESSION_INSTRUCTIONS = `You are a hands-free voice pair-programmer. The us
 
 Always speak and respond in English only. Do not switch languages.
 
-A live webapp preview is on the right. You have two kinds of tools:
+A live webapp preview is on the right. You have these tools:
 
 BUILD — run_coding_agent: edit the playground source to create or change the UI.
 UNDO — undo_last_change: revert the playground one successful coding change at a time (up to 100 steps).
 OPERATE — click, type_into, scroll, press_key: interact with the already-running preview.
+TEST — create_ui_test: write a JSON step-script under playground/tests/; run_ui_test: replay it live in the preview.
 PREVIEW — open_preview: open the live playground in the user's default web browser.
 MIC — mute: mute or unmute the user's microphone in this app.
 
@@ -33,6 +35,8 @@ Classify intent:
 - "Add a delete button" / "make a todo app" / "change the theme" → run_coding_agent
 - "Undo" / "undo that" / "revert the last change" / "go back" → undo_last_change
 - "Click delete" / "type milk into the input" / "scroll down" / "press Enter" → UI tools
+- "Write a UI test…" / "create a test that…" → create_ui_test
+- "Run the add todo test" / "run the UI test" → run_ui_test
 - "Open preview" / "open in browser" / "open in web browser" / "show in browser" → open_preview
 - "Mute" / "unmute" / "stop listening" → mute
 Prefer UI tools when the control already exists. Do not rebuild for simple interactions.
@@ -158,6 +162,46 @@ function tools() {
         type: "object",
         properties: {},
         required: [],
+      },
+    },
+    {
+      type: "function",
+      name: "create_ui_test",
+      description:
+        'Create or update a JSON UI step-script test under playground/tests/. Use for "write a UI test", "create a test that…". Writes the test file via the coding agent; does not change app UI.',
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: 'Short test name, e.g. "Add a todo" or "add-todo".',
+          },
+          prompt: {
+            type: "string",
+            description: "What the test should do and assert, in plain language.",
+          },
+          run_after: {
+            type: "boolean",
+            description: "If true, run the test live in the preview after creating it.",
+          },
+        },
+        required: ["name", "prompt"],
+      },
+    },
+    {
+      type: "function",
+      name: "run_ui_test",
+      description:
+        'Run a saved UI step-script test live in the preview (highlights + asserts). Use for "run the add todo test", "run the UI test".',
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Test name or filename slug to run, e.g. \"add todo\".",
+          },
+        },
+        required: ["name"],
       },
     },
   ];
@@ -737,6 +781,96 @@ export class InworldSession {
           const error = err instanceof Error ? err.message : "Failed to open browser";
           this.completeToolCall(callId, { ok: false, error }, epoch);
         }
+        return;
+      }
+
+      if (name === "run_ui_test") {
+        const testName = String(args.name ?? "").trim();
+        if (!testName) {
+          this.completeToolCall(callId, { ok: false, error: "Missing test name" }, epoch);
+          return;
+        }
+        sendAgentStatus(win, `Running UI test “${testName}”…`);
+        const result = await runUiTest(testName, win);
+        if (epoch !== this.toolEpoch) return;
+        if (result.ok) {
+          sendAgentStatus(
+            win,
+            `UI test passed: ${result.name} (${result.passed}/${result.total})`,
+            "done",
+          );
+          sendChat(win, "system", `UI test passed: ${result.name}`);
+        } else {
+          const detail =
+            result.failedStep != null
+              ? ` failed at step ${result.failedStep}: ${result.error ?? "unknown error"}`
+              : `: ${result.error ?? "unknown error"}`;
+          sendAgentStatus(win, `UI test failed: ${result.name}${detail}`, "error");
+          sendChat(win, "system", `UI test failed: ${result.name}${detail}`);
+        }
+        this.completeToolCall(callId, result, epoch);
+        return;
+      }
+
+      if (name === "create_ui_test") {
+        const testName = String(args.name ?? "").trim();
+        const prompt = String(args.prompt ?? "").trim();
+        const runAfter = Boolean(args.run_after);
+        if (!testName || !prompt) {
+          this.completeToolCall(callId, { ok: false, error: "Missing name or prompt" }, epoch);
+          return;
+        }
+        sendAgentStatus(win, `Creating UI test “${testName}”…`);
+        const result = await runCodingAgent(uiTestPrompt(testName, prompt), (evt) => {
+          if (epoch !== this.toolEpoch) return;
+          sendAgentStatus(win, evt.message, evt.type);
+        });
+        if (epoch !== this.toolEpoch) return;
+        if (result.ok) {
+          sendDiff(win, result.diffs);
+          sendAgentStatus(win, result.summary, "done");
+        } else {
+          sendAgentStatus(win, result.summary, "error");
+          this.completeToolCall(callId, {
+            ok: false,
+            summary: result.summary,
+            filesTouched: result.filesTouched,
+          }, epoch);
+          return;
+        }
+
+        if (runAfter) {
+          sendAgentStatus(win, `Running UI test “${testName}”…`);
+          const runResult = await runUiTest(testName, win);
+          if (epoch !== this.toolEpoch) return;
+          if (runResult.ok) {
+            sendAgentStatus(
+              win,
+              `UI test passed: ${runResult.name} (${runResult.passed}/${runResult.total})`,
+              "done",
+            );
+            sendChat(win, "system", `UI test passed: ${runResult.name}`);
+          } else {
+            const detail =
+              runResult.failedStep != null
+                ? ` failed at step ${runResult.failedStep}: ${runResult.error ?? "unknown error"}`
+                : `: ${runResult.error ?? "unknown error"}`;
+            sendAgentStatus(win, `UI test failed: ${runResult.name}${detail}`, "error");
+            sendChat(win, "system", `UI test failed: ${runResult.name}${detail}`);
+          }
+          this.completeToolCall(
+            callId,
+            { ok: result.ok && runResult.ok, created: result, run: runResult },
+            epoch,
+          );
+          return;
+        }
+
+        this.completeToolCall(callId, {
+          ok: true,
+          summary: result.summary,
+          filesTouched: result.filesTouched,
+        }, epoch);
         return;
       }
 

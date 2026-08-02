@@ -20,13 +20,41 @@ type BridgeRequest =
       amount?: "page" | "half" | number;
       requestId: string;
     }
-  | { source: "scribe-coding-agent"; action: "press_key"; key: string; requestId: string };
+  | { source: "scribe-coding-agent"; action: "press_key"; key: string; requestId: string }
+  | { source: "scribe-coding-agent"; action: "assert_text"; text: string; requestId: string }
+  | { source: "scribe-coding-agent"; action: "assert_no_text"; text: string; requestId: string }
+  | { source: "scribe-coding-agent"; action: "assert_visible"; target: string; requestId: string }
+  | { source: "scribe-coding-agent"; action: "wait"; ms?: number; requestId: string };
+
+const HIGHLIGHT_CLASS = "scribe-voice-highlight";
+const HIGHLIGHT_STYLE_ID = "scribe-voice-highlight-style";
 
 function ack(requestId: string, ok: boolean, error?: string) {
   window.parent.postMessage(
     { source: "scribe-coding-agent-bridge", type: "action-result", requestId, ok, error },
     "*",
   );
+}
+
+function ensureHighlightStyle(): void {
+  if (document.getElementById(HIGHLIGHT_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = HIGHLIGHT_STYLE_ID;
+  style.textContent = `
+    .${HIGHLIGHT_CLASS} {
+      outline: 3px solid #3dd6c6 !important;
+      outline-offset: 2px !important;
+      box-shadow: 0 0 0 4px rgba(61, 214, 198, 0.35) !important;
+      transition: outline 80ms ease, box-shadow 80ms ease;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function highlight(el: HTMLElement): void {
+  ensureHighlightStyle();
+  el.classList.add(HIGHLIGHT_CLASS);
+  window.setTimeout(() => el.classList.remove(HIGHLIGHT_CLASS), 450);
 }
 
 function normalize(s: string): string {
@@ -44,6 +72,10 @@ function looksLikeSelector(target: string): boolean {
 
 function textOf(el: Element): string {
   return (el.getAttribute("aria-label") || el.textContent || "").replace(/\s+/g, " ").trim();
+}
+
+function pageText(): string {
+  return (document.body?.innerText || document.body?.textContent || "").replace(/\s+/g, " ").trim();
 }
 
 function resolveTarget(target: string): HTMLElement | null {
@@ -112,6 +144,7 @@ function doClick(target: string): { ok: boolean; error?: string } {
   const el = resolveTarget(target);
   if (!el) return { ok: false, error: `No control matching "${target}"` };
   el.scrollIntoView({ block: "center", inline: "nearest" });
+  highlight(el);
   el.click();
   return { ok: true };
 }
@@ -124,6 +157,7 @@ function doTypeInto(
   const el = resolveTarget(target);
   if (!el) return { ok: false, error: `No field matching "${target}"` };
   el.scrollIntoView({ block: "center", inline: "nearest" });
+  highlight(el);
   el.focus();
 
   if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
@@ -176,32 +210,87 @@ function doPressKey(key: string): { ok: boolean; error?: string } {
   return { ok: true };
 }
 
+function doAssertText(text: string): { ok: boolean; error?: string } {
+  const needle = text.trim();
+  if (!needle) return { ok: false, error: "assert_text requires text" };
+  if (!pageText().toLowerCase().includes(needle.toLowerCase())) {
+    return { ok: false, error: `Text not found: "${needle}"` };
+  }
+  return { ok: true };
+}
+
+function doAssertNoText(text: string): { ok: boolean; error?: string } {
+  const needle = text.trim();
+  if (!needle) return { ok: false, error: "assert_no_text requires text" };
+  if (pageText().toLowerCase().includes(needle.toLowerCase())) {
+    return { ok: false, error: `Text still present: "${needle}"` };
+  }
+  return { ok: true };
+}
+
+function doAssertVisible(target: string): { ok: boolean; error?: string } {
+  const el = resolveTarget(target);
+  if (!el) return { ok: false, error: `Not visible: "${target}"` };
+  el.scrollIntoView({ block: "center", inline: "nearest" });
+  highlight(el);
+  return { ok: true };
+}
+
+function doWait(ms?: number): Promise<{ ok: boolean; error?: string }> {
+  const delay = Math.max(0, Math.min(typeof ms === "number" ? ms : 300, 5000));
+  return new Promise((resolve) => {
+    window.setTimeout(() => resolve({ ok: true }), delay);
+  });
+}
+
 window.addEventListener("message", (event: MessageEvent) => {
   const data = event.data as BridgeRequest;
   if (!data || data.source !== "scribe-coding-agent") return;
   if (!data.action || !("requestId" in data)) return;
 
-  try {
-    if (data.action === "click") {
-      const result = doClick(data.target);
-      ack(data.requestId, result.ok, result.error);
-      return;
+  void (async () => {
+    try {
+      if (data.action === "click") {
+        const result = doClick(data.target);
+        ack(data.requestId, result.ok, result.error);
+        return;
+      }
+      if (data.action === "type_into") {
+        const result = doTypeInto(data.target, data.text, data.clear);
+        ack(data.requestId, result.ok, result.error);
+        return;
+      }
+      if (data.action === "scroll") {
+        const result = doScroll(data.direction, data.amount);
+        ack(data.requestId, result.ok, result.error);
+        return;
+      }
+      if (data.action === "press_key") {
+        const result = doPressKey(data.key);
+        ack(data.requestId, result.ok, result.error);
+        return;
+      }
+      if (data.action === "assert_text") {
+        const result = doAssertText(data.text);
+        ack(data.requestId, result.ok, result.error);
+        return;
+      }
+      if (data.action === "assert_no_text") {
+        const result = doAssertNoText(data.text);
+        ack(data.requestId, result.ok, result.error);
+        return;
+      }
+      if (data.action === "assert_visible") {
+        const result = doAssertVisible(data.target);
+        ack(data.requestId, result.ok, result.error);
+        return;
+      }
+      if (data.action === "wait") {
+        const result = await doWait(data.ms);
+        ack(data.requestId, result.ok, result.error);
+      }
+    } catch (err) {
+      ack(data.requestId, false, err instanceof Error ? err.message : "Bridge error");
     }
-    if (data.action === "type_into") {
-      const result = doTypeInto(data.target, data.text, data.clear);
-      ack(data.requestId, result.ok, result.error);
-      return;
-    }
-    if (data.action === "scroll") {
-      const result = doScroll(data.direction, data.amount);
-      ack(data.requestId, result.ok, result.error);
-      return;
-    }
-    if (data.action === "press_key") {
-      const result = doPressKey(data.key);
-      ack(data.requestId, result.ok, result.error);
-    }
-  } catch (err) {
-    ack(data.requestId, false, err instanceof Error ? err.message : "Bridge error");
-  }
+  })();
 });

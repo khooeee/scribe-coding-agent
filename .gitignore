@@ -1,7 +1,8 @@
-notes.md
+.cursor
 .env
 node_modules
 dist
+notes.md
 out
 *.log
 .DS_Store

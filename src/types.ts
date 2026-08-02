@@ -41,7 +41,22 @@ export type PreviewAction =
   | { action: "click"; target: string; requestId: string }
   | { action: "type_into"; target: string; text: string; clear?: boolean; requestId: string }
   | { action: "scroll"; direction: "up" | "down"; amount?: "page" | "half" | number; requestId: string }
-  | { action: "press_key"; key: string; requestId: string };
+  | { action: "press_key"; key: string; requestId: string }
+  | { action: "assert_text"; text: string; requestId: string }
+  | { action: "assert_no_text"; text: string; requestId: string }
+  | { action: "assert_visible"; target: string; requestId: string }
+  | { action: "wait"; ms?: number; requestId: string };
+
+export type TestProgressEvent = {
+  name: string;
+  step: number;
+  total: number;
+  action: string;
+  detail?: string;
+  ok: boolean;
+  error?: string;
+  done?: boolean;
+};
 
 export type IncomingChatMessage = TextChatMessage | Omit<DiffChatMessage, "open">;
 
@@ -62,6 +77,7 @@ export type ScribeApi = {
   onVoiceInterrupt: (cb: () => void) => () => void;
   onPreviewReload: (cb: () => void) => () => void;
   onPreviewAction: (cb: (action: PreviewAction) => void) => () => void;
+  onTestProgress: (cb: (event: TestProgressEvent) => void) => () => void;
   onSetMute: (cb: (muted: boolean) => void) => () => void;
   onProjectReset: (cb: (payload: { playgroundUrl: string }) => void) => () => void;
 };

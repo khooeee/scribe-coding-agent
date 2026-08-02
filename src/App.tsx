@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   IncomingChatMessage,
   PreviewAction,
+  TestProgressEvent,
 } from "./types";
 
 const SPLIT_KEY = "scribe-coding-agent-chat-ratio";
@@ -96,6 +97,42 @@ export default function App() {
     appendToolsLine(setMessages, status.message, status.type);
   });
 
+  const onTestProgress = useEffectEvent((event: TestProgressEvent) => {
+    if (event.action === "start") {
+      appendToolsLine(
+        setMessages,
+        `UI test “${event.name}” (${event.total} steps)${event.detail ? ` · ${event.detail}` : ""}`,
+        "status",
+      );
+      return;
+    }
+    if (event.done) {
+      if (event.ok) {
+        appendToolsLine(
+          setMessages,
+          `Passed “${event.name}” (${event.total}/${event.total})`,
+          "done",
+        );
+      } else {
+        const detail = event.error ? `: ${event.error}` : "";
+        appendToolsLine(
+          setMessages,
+          `Failed “${event.name}” at step ${event.step}/${event.total}${detail}`,
+          "error",
+        );
+      }
+      return;
+    }
+    const label = event.detail ? `${event.action} ${event.detail}` : event.action;
+    const prefix = event.ok ? "✓" : "✗";
+    // Keep the block open while steps stream; only done/error events collapse it.
+    appendToolsLine(
+      setMessages,
+      `${prefix} ${event.step}/${event.total}: ${label}${event.error ? ` — ${event.error}` : ""}`,
+      "status",
+    );
+  });
+
   const onAudio = useEffectEvent((payload: { pcm16Base64: string }) => {
     playerRef.current ??= new PcmPlayer();
     playerRef.current.playBase64Pcm16(payload.pcm16Base64);
@@ -157,6 +194,7 @@ export default function App() {
     const origin = new URL(playgroundUrl).origin;
     win.postMessage({ source: "scribe-coding-agent", ...action }, origin);
 
+    const waitMs = action.action === "wait" ? Math.min(action.ms ?? 300, 5000) : 0;
     window.setTimeout(() => {
       if (!pendingAcks.current.has(action.requestId)) return;
       pendingAcks.current.delete(action.requestId);
@@ -166,7 +204,7 @@ export default function App() {
         ok: false,
         error: "No ack from preview bridge",
       });
-    }, 7000);
+    }, 7000 + waitMs);
   });
 
   useEffect(() => {
@@ -180,6 +218,7 @@ export default function App() {
     const unsubs = [
       window.scribeApi.onChatMessage(onChat),
       window.scribeApi.onAgentStatus(onStatus),
+      window.scribeApi.onTestProgress(onTestProgress),
       window.scribeApi.onAudioOut(onAudio),
       window.scribeApi.onVoiceInterrupt(onVoiceInterrupt),
       window.scribeApi.onPreviewReload(reloadPreview),

@@ -12,7 +12,7 @@ Composer 2.5 fast was selected for [fast feedback](https://artificialanalysis.ai
 
 Aside from speaking your app into existence, there are other voice commands:
 
-Testing:
+Testing the live preview:
 
 | Tool | Purpose |
 |------|---------|
@@ -20,6 +20,8 @@ Testing:
 | `type_into` | Type into a field |
 | `scroll` | Scroll up or down |
 | `press_key` | Press Enter, Escape, etc. |
+| `create_ui_test` | Write a JSON step-script under `playground/tests/` |
+| `run_ui_test` | Replay a UI test live in the preview (highlights + asserts) |
 
 Other commands:
 
@@ -54,9 +56,10 @@ Grant microphone access once. Listening starts automatically.
 ## Demo script (3 min)
 
 1. Launch — empty playground on the right
-2. “Build a simple todo app with a dark theme”
-3. “Type buy milk into the input and press Enter”
-4. “Click the delete button” / “Scroll down”
+2. “Build a simple todo app with an input, an Add button, and a delete control on each item”
+3. “Run the add todo test” — preview types “buy milk”, clicks Add, asserts, deletes, asserts gone  
+   (fixture: [`playground-template/tests/add-todo.json`](playground-template/tests/add-todo.json))
+4. Or: “Write a UI test called add todo that types buy milk, adds it, checks it appears, deletes it, and checks it’s gone”
 5. “Make completed items fade out”
 
 ## Important

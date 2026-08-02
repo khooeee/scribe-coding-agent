@@ -32,7 +32,22 @@ export type PreviewAction =
   | { action: "click"; target: string; requestId: string }
   | { action: "type_into"; target: string; text: string; clear?: boolean; requestId: string }
   | { action: "scroll"; direction: "up" | "down"; amount?: "page" | "half" | number; requestId: string }
-  | { action: "press_key"; key: string; requestId: string };
+  | { action: "press_key"; key: string; requestId: string }
+  | { action: "assert_text"; text: string; requestId: string }
+  | { action: "assert_no_text"; text: string; requestId: string }
+  | { action: "assert_visible"; target: string; requestId: string }
+  | { action: "wait"; ms?: number; requestId: string };
+
+export type TestProgressEvent = {
+  name: string;
+  step: number;
+  total: number;
+  action: string;
+  detail?: string;
+  ok: boolean;
+  error?: string;
+  done?: boolean;
+};
 
 const api = {
   getConfig: (): Promise<{ playgroundUrl: string }> => ipcRenderer.invoke("app:get-config"),
@@ -91,6 +106,12 @@ const api = {
     const handler = (_: Electron.IpcRendererEvent, action: PreviewAction) => cb(action);
     ipcRenderer.on("preview:action", handler);
     return () => ipcRenderer.removeListener("preview:action", handler);
+  },
+
+  onTestProgress: (cb: (event: TestProgressEvent) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, event: TestProgressEvent) => cb(event);
+    ipcRenderer.on("test:progress", handler);
+    return () => ipcRenderer.removeListener("test:progress", handler);
   },
 
   onSetMute: (cb: (muted: boolean) => void): (() => void) => {

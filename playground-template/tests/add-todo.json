@@ -1,0 +1,11 @@
+{
+  "name": "Add a todo",
+  "steps": [
+    { "action": "assert_visible", "target": "Add" },
+    { "action": "type_into", "target": "todo", "text": "buy milk", "clear": true },
+    { "action": "click", "target": "Add" },
+    { "action": "assert_text", "text": "buy milk" },
+    { "action": "click", "target": "Delete" },
+    { "action": "assert_no_text", "text": "buy milk" }
+  ]
+}
