@@ -160,8 +160,10 @@ body {
 
 .bubble.assistant {
   align-self: flex-start;
-  background: var(--assistant);
-  border: 1px solid #274036;
+  background: transparent;
+  border: none;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .bubble.system {

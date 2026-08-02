@@ -194,6 +194,10 @@ export class InworldSession {
   private pendingToolCalls = new Set<string>();
   private toolChain: Promise<void> = Promise.resolve();
   private interruptsDisabled = false;
+  /** True between response.created and response.done */
+  private responseInFlight = false;
+  /** True once the current/last response requested any tools */
+  private awaitingToolFollowUp = false;
 
   constructor(getWindow: () => BrowserWindow | null) {
     this.getWindow = getWindow;
@@ -346,11 +350,39 @@ export class InworldSession {
     if (!callId) return;
     this.sendFunctionOutput(callId, output);
     this.pendingToolCalls.delete(callId);
-    if (this.pendingToolCalls.size === 0) {
+    this.maybeContinueAfterTools();
+  }
+
+  /**
+   * OpenAI requires every tool_call_id to be answered before the next model turn.
+   * Fast tools can finish before later function_call events (or response.done)
+   * arrive — never response.create until the response is finished AND pending is empty.
+   */
+  private maybeContinueAfterTools(): void {
+    if (this.pendingToolCalls.size > 0 || this.responseInFlight) return;
+    if (!this.awaitingToolFollowUp) {
       this.setToolsBusy(false);
-      // Continue the assistant turn with tool results in context.
-      this.send({ type: "response.create" });
+      return;
     }
+    this.awaitingToolFollowUp = false;
+    // Keep VAD auto-response off until this follow-up begins; response.created
+    // will keep busy true if more tools appear, otherwise response.done clears it.
+    this.send({ type: "response.create" });
+  }
+
+  private recoverMissingToolOutputs(message: string): void {
+    const fromError = message.match(/call_[A-Za-z0-9]+/g) ?? [];
+    const ids = new Set([...this.pendingToolCalls, ...fromError]);
+    for (const callId of ids) {
+      this.sendFunctionOutput(callId, {
+        ok: false,
+        error: "Tool call interrupted; no result available.",
+      });
+    }
+    this.pendingToolCalls.clear();
+    this.awaitingToolFollowUp = false;
+    this.responseInFlight = false;
+    this.setToolsBusy(false);
   }
 
   private async onMessage(raw: string): Promise<void> {
@@ -365,7 +397,10 @@ export class InworldSession {
 
     // If the user starts speaking while tools are unanswered, keep interrupts off
     // until every tool_call_id has a function_call_output (OpenAI requirement).
-    if (type === "input_audio_buffer.speech_started" && this.pendingToolCalls.size > 0) {
+    if (
+      type === "input_audio_buffer.speech_started" &&
+      (this.pendingToolCalls.size > 0 || this.awaitingToolFollowUp)
+    ) {
       sendAgentStatus(
         this.getWindow(),
         "Still finishing a tool — hang tight before the next request…",
@@ -388,6 +423,11 @@ export class InworldSession {
         const transcript = item.content?.find((c) => c.transcript)?.transcript?.trim();
         if (transcript) sendChat(this.getWindow(), "user", transcript);
       }
+      return;
+    }
+
+    if (type === "response.created") {
+      this.responseInFlight = true;
       return;
     }
 
@@ -420,11 +460,13 @@ export class InworldSession {
     }
 
     if (type === "response.done") {
+      this.responseInFlight = false;
       const text = this.assistantBuffer.trim();
       if (text) {
         sendChat(this.getWindow(), "assistant", text);
         this.assistantBuffer = "";
       }
+      this.maybeContinueAfterTools();
       return;
     }
 
@@ -444,6 +486,8 @@ export class InworldSession {
       }
 
       this.pendingToolCalls.add(callId);
+      this.awaitingToolFollowUp = true;
+      this.responseInFlight = true;
       this.setToolsBusy(true);
 
       // Serialize tool execution so multiple calls in one turn complete in order,
@@ -464,10 +508,9 @@ export class InworldSession {
           : "Inworld error";
       sendChat(this.getWindow(), "system", message);
 
-      // If the router rejected history, clear our local pending set so we can recover.
+      // Repair OpenAI history by answering any missing tool_call_ids, then unblock.
       if (message.includes("tool_call") || message.includes("tool_calls")) {
-        this.pendingToolCalls.clear();
-        this.setToolsBusy(false);
+        this.recoverMissingToolOutputs(message);
       }
     }
   }
