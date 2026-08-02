@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { BrowserWindow } from "electron";
+import { BrowserWindow, shell } from "electron";
 import { runCodingAgent } from "./coding-agent";
 import { requestPreviewAction } from "./preview-actions";
 import {
@@ -7,6 +7,7 @@ import {
   undoLastPlaygroundChange,
 } from "./playground-snapshot";
 import { buildPlaygroundDiffs, type FileDiff } from "./file-diff";
+import { getPlaygroundUrl } from "./playground";
 
 const INWORLD_URL = "wss://api.inworld.ai/api/v1/realtime/session";
 
@@ -25,12 +26,14 @@ A live webapp preview is on the right. You have two kinds of tools:
 BUILD — run_coding_agent: edit the playground source to create or change the UI.
 UNDO — undo_last_change: revert the playground one successful coding change at a time (up to 100 steps).
 OPERATE — click, type_into, scroll, press_key: interact with the already-running preview.
+PREVIEW — open_preview: open the live playground in the user's default web browser.
 MIC — mute: mute or unmute the user's microphone in this app.
 
 Classify intent:
 - "Add a delete button" / "make a todo app" / "change the theme" → run_coding_agent
 - "Undo" / "undo that" / "revert the last change" / "go back" → undo_last_change
 - "Click delete" / "type milk into the input" / "scroll down" / "press Enter" → UI tools
+- "Open preview" / "open in browser" / "open in web browser" / "show in browser" → open_preview
 - "Mute" / "unmute" / "stop listening" → mute
 Prefer UI tools when the control already exists. Do not rebuild for simple interactions.
 Act immediately without asking for confirmation.
@@ -140,6 +143,17 @@ function tools() {
       name: "undo_last_change",
       description:
         "Undo the latest successful coding-agent change to the playground webapp (restore previous source and refresh the preview). Can be called repeatedly; up to 100 prior changes are kept.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+    {
+      type: "function",
+      name: "open_preview",
+      description:
+        'Open the live playground preview in the user\'s default web browser. Use for "open preview", "open in browser", "open in web browser", or "show in browser".',
       parameters: {
         type: "object",
         properties: {},
@@ -710,6 +724,19 @@ export class InworldSession {
           sendAgentStatus(win, result.summary, "error");
         }
         this.completeToolCall(callId, result, epoch);
+        return;
+      }
+
+      if (name === "open_preview") {
+        const url = getPlaygroundUrl();
+        try {
+          await shell.openExternal(url);
+          sendChat(win, "system", `Opened preview in browser: ${url}`);
+          this.completeToolCall(callId, { ok: true, url }, epoch);
+        } catch (err) {
+          const error = err instanceof Error ? err.message : "Failed to open browser";
+          this.completeToolCall(callId, { ok: false, error }, epoch);
+        }
         return;
       }
 

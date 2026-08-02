@@ -2,12 +2,32 @@
 
 Hands-free voice coding agent: **speak your app into existence**.
 
-Electron window with a resizable split:
+Powered by:
+- [Inworld Realtime](https://docs.inworld.ai/) (speech)
+- [Cursor SDK](https://cursor.com/docs/sdk/typescript) Composer 2.5 Fast (coding)
 
-- **Left** — voice chat transcript (auto-listening)
-- **Right** — live playground webapp that refreshes after each coding turn
+Composer 2.5 fast was selected for [fast feedback](https://artificialanalysis.ai/agents/coding-agents#execution-time) (as of August 1st 2026).
 
-Powered by [Inworld Realtime](https://docs.inworld.ai/) (speech) and [Cursor SDK](https://cursor.com/docs/sdk/typescript) Composer 2.5 Fast (coding), plus voice UI tools (`click`, `type_into`, `scroll`, `press_key`, `mute`, `undo_last_change`).
+## Voice commands
+
+Aside from speaking your app into existence, there are other voice commands:
+
+Testing:
+
+| Tool | Purpose |
+|------|---------|
+| `click` | Click by label / text / selector |
+| `type_into` | Type into a field |
+| `scroll` | Scroll up or down |
+| `press_key` | Press Enter, Escape, etc. |
+
+Other commands:
+
+| Tool | Purpose |
+|------|---------|
+| `mute` | Mute the mic |
+| `open_preview` | Open the preview in web browser |
+| `undo_last_change` | Revert the last successful coding change (100 undos) |
 
 ## Setup
 
@@ -38,18 +58,6 @@ Grant microphone access once. Listening starts automatically.
 3. “Type buy milk into the input and press Enter”
 4. “Click the delete button” / “Scroll down”
 5. “Make completed items fade out”
-
-## Voice tools
-
-| Tool | Purpose |
-|------|---------|
-| `run_coding_agent` | Edit playground source with Composer |
-| `undo_last_change` | Revert the latest successful coding change |
-| `click` | Click by label / text / selector |
-| `type_into` | Type into a field |
-| `scroll` | Scroll the preview |
-| `press_key` | Press Enter, Escape, etc. |
-| `mute` | Mute / unmute the mic (`muted: true\|false`) |
 
 ## Important
 
