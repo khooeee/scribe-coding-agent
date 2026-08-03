@@ -317,11 +317,18 @@ export class InworldSession {
       type: "session.update",
       session: {
         type: "realtime",
-        model: "openai/gpt-4o-mini",
+        model: "openai/gpt-5.6-luna",
         instructions: SESSION_INSTRUCTIONS,
         output_modalities: ["audio", "text"],
         tools: tools(),
         tool_choice: "auto",
+        // gpt-5.6-luna rejects function tools unless reasoning effort is NONE
+        // on the chat/completions path Inworld uses for Realtime tool calls.
+        text_generation_config: {
+          reasoning: {
+            effort: "NONE",
+          },
+        },
         // We explicitly send response.create after every tool result.
         providerData: {
           auto_tool_response: false,
@@ -332,6 +339,7 @@ export class InworldSession {
             language: "en-US",
           },
         },
+
         audio: {
           input: {
             transcription: {
